@@ -2,5 +2,6 @@ call plug#begin('~/.vim/autoload')
 
 "Fugitive Vim Github Wrapper
 Plug 'tpope/vim-fugitive'
+Plug 'rust-lang/rust.vim'
 
 call plug#end()

@@ -77,3 +77,6 @@ autocmd BufWinEnter *.* silent loadview"
  if filereadable(expand("~/.vimrc.plug"))
      source ~/.vimrc.plug
  endif
+
+" Autoformat Rust files on save
+let g:rustfmt_autosave = 1
