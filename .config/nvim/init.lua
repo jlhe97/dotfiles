@@ -8,11 +8,13 @@ if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
   vim.cmd('autocmd VimEnter * PlugInstall --sync | source $MYVIMRC')
 end
 
+
 -- Plugins
 vim.call('plug#begin', vim.fn.stdpath('data') .. '/plugged')
 vim.call('plug#', 'hrsh7th/nvim-cmp')
 vim.call('plug#', 'hrsh7th/cmp-nvim-lsp')
 vim.call('plug#', 'hrsh7th/cmp-buffer')
+vim.call('plug#', 'rust-lang/rust.vim')
 vim.call('plug#end')
 
 -- Basic settings
@@ -37,6 +39,26 @@ local on_attach = function(client, bufnr)
   vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
   vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
 end
+
+local capabilities = require("cmp_nvim_lsp").default_capabilities()
+-- Auto-start rust-analyzer for Rust files
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = {"rust"},
+  callback = function()
+    vim.lsp.start({
+      name = "rust_analyzer",
+      cmd = {"rust-analyzer"},
+      root_dir = vim.fs.dirname(vim.fs.find("Cargo.toml", { upward = true })[1]),
+      capabilities = capabilities,
+      on_attach = on_attach,
+      settings = {
+        ["rust-analyzer"] = {
+          checkOnSave = { command = "clippy" },
+        },
+      },
+    })
+  end,
+})
 
 -- Setup nvim-cmp for autocompletion
 local cmp = require('cmp')
@@ -68,8 +90,6 @@ cmp.setup({
   })
 })
 
--- Setup clangd using built-in LSP
-local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
 -- Auto-start clangd for C/C++ files
 vim.api.nvim_create_autocmd("FileType", {
