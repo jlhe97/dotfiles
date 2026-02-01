@@ -91,6 +91,29 @@ uninstall_neomutt() {
     fi
 }
 
+uninstall_ghostty() {
+    if command -v ghostty &> /dev/null; then
+        info "Uninstalling ghostty..."
+        if command -v brew &> /dev/null; then
+            brew uninstall ghostty
+        elif command -v apt &> /dev/null; then
+            sudo apt remove -y ghostty
+            # Optionally remove the repository
+            sudo rm -f /etc/apt/sources.list.d/ghostty.list
+            sudo rm -f /usr/share/keyrings/ghostty-keyring.gpg
+        elif command -v dnf &> /dev/null; then
+            sudo dnf remove -y ghostty
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -Rs --noconfirm ghostty
+        else
+            warn "Could not detect package manager. Please uninstall ghostty manually."
+        fi
+        info "ghostty uninstalled"
+    else
+        info "ghostty is not installed"
+    fi
+}
+
 uninstall_ohmyzsh() {
     if [ -d "$HOME/.oh-my-zsh" ]; then
         info "Removing oh-my-zsh..."
@@ -162,7 +185,7 @@ main() {
     echo ""
 
     # Ask about uninstalling packages
-    read -p "Do you want to uninstall packages (tmux, neovim, neomutt, zsh, oh-my-zsh)? [y/N] " -n 1 -r
+    read -p "Do you want to uninstall packages (tmux, neovim, neomutt, ghostty, zsh, oh-my-zsh)? [y/N] " -n 1 -r
     echo ""
 
     if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -172,6 +195,8 @@ main() {
         uninstall_neovim
         echo ""
         uninstall_neomutt
+        echo ""
+        uninstall_ghostty
         echo ""
         uninstall_ohmyzsh
         echo ""

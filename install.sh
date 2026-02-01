@@ -103,6 +103,32 @@ install_neomutt() {
     fi
 }
 
+install_ghostty() {
+    if command -v ghostty &> /dev/null; then
+        info "ghostty is already installed"
+    else
+        info "Installing ghostty..."
+        if command -v brew &> /dev/null; then
+            brew install ghostty
+        elif command -v apt &> /dev/null; then
+            # Add Ghostty apt repository for Debian/Ubuntu
+            sudo apt update && sudo apt install -y curl gpg
+            curl -fsSL https://pkg.ghostty.org/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/ghostty-keyring.gpg
+            echo "deb [signed-by=/usr/share/keyrings/ghostty-keyring.gpg] https://pkg.ghostty.org/apt stable main" | sudo tee /etc/apt/sources.list.d/ghostty.list
+            sudo apt update && sudo apt install -y ghostty
+        elif command -v dnf &> /dev/null; then
+            sudo dnf copr enable -y pgdev/ghostty
+            sudo dnf install -y ghostty
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm ghostty
+        else
+            error "Could not detect package manager. Please install ghostty manually from https://ghostty.org"
+            exit 1
+        fi
+        info "ghostty installed successfully"
+    fi
+}
+
 install_zsh() {
     if command -v zsh &> /dev/null; then
         info "zsh is already installed"
@@ -193,6 +219,10 @@ main() {
     install_neomutt
     echo ""
 
+    # Install ghostty
+    install_ghostty
+    echo ""
+
     # Install zsh and oh-my-zsh
     install_zsh
     install_ohmyzsh
@@ -240,6 +270,7 @@ main() {
     echo "  - vim      (~/.vimrc, ~/.vimrc.plug)"
     echo "  - neovim   (~/.config/nvim/)"
     echo "  - neomutt  (~/.neomuttrc)"
+    echo "  - ghostty  (terminal emulator)"
     echo ""
     echo "Note: You may need to:"
     echo "  - Restart your terminal for zsh to take effect"
