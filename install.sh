@@ -31,12 +31,126 @@ FILES=(
     ".tmux.conf"
     ".vimrc"
     ".vimrc.plug"
+    ".zshrc"
+    ".neomuttrc"
 )
 
 # Directories to install (relative to dotfiles directory)
 DIRS=(
     ".config/nvim"
 )
+
+install_tmux() {
+    if command -v tmux &> /dev/null; then
+        info "tmux is already installed"
+    else
+        info "Installing tmux..."
+        if command -v apt &> /dev/null; then
+            sudo apt update && sudo apt install -y tmux
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y tmux
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm tmux
+        elif command -v brew &> /dev/null; then
+            brew install tmux
+        else
+            error "Could not detect package manager. Please install tmux manually."
+            exit 1
+        fi
+        info "tmux installed successfully"
+    fi
+}
+
+install_neovim() {
+    if command -v nvim &> /dev/null; then
+        info "neovim is already installed"
+    else
+        info "Installing neovim..."
+        if command -v apt &> /dev/null; then
+            sudo apt update && sudo apt install -y neovim
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y neovim
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm neovim
+        elif command -v brew &> /dev/null; then
+            brew install neovim
+        else
+            error "Could not detect package manager. Please install neovim manually."
+            exit 1
+        fi
+        info "neovim installed successfully"
+    fi
+}
+
+install_neomutt() {
+    if command -v neomutt &> /dev/null; then
+        info "neomutt is already installed"
+    else
+        info "Installing neomutt..."
+        if command -v apt &> /dev/null; then
+            sudo apt update && sudo apt install -y neomutt
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y neomutt
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm neomutt
+        elif command -v brew &> /dev/null; then
+            brew install neomutt
+        else
+            error "Could not detect package manager. Please install neomutt manually."
+            exit 1
+        fi
+        info "neomutt installed successfully"
+    fi
+}
+
+install_zsh() {
+    if command -v zsh &> /dev/null; then
+        info "zsh is already installed"
+    else
+        info "Installing zsh..."
+        if command -v apt &> /dev/null; then
+            sudo apt update && sudo apt install -y zsh
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y zsh
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm zsh
+        elif command -v brew &> /dev/null; then
+            brew install zsh
+        else
+            error "Could not detect package manager. Please install zsh manually."
+            exit 1
+        fi
+        info "zsh installed successfully"
+    fi
+}
+
+set_default_shell() {
+    local zsh_path
+    zsh_path="$(which zsh)"
+
+    if [ "$SHELL" = "$zsh_path" ]; then
+        info "zsh is already the default shell"
+    else
+        info "Setting zsh as default shell..."
+        if ! grep -q "$zsh_path" /etc/shells; then
+            info "Adding $zsh_path to /etc/shells"
+            echo "$zsh_path" | sudo tee -a /etc/shells
+        fi
+        chsh -s "$zsh_path"
+        info "Default shell changed to zsh (restart your terminal to take effect)"
+    fi
+}
+
+install_ohmyzsh() {
+    if [ -d "$HOME/.oh-my-zsh" ]; then
+        info "oh-my-zsh is already installed"
+    else
+        info "Installing oh-my-zsh..."
+        # Install oh-my-zsh without running zsh or modifying .zshrc
+        RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+        info "oh-my-zsh installed successfully"
+    fi
+}
 
 backup_and_link() {
     local src="$1"
@@ -65,6 +179,24 @@ main() {
     echo ""
     info "Dotfiles directory: $DOTFILES_DIR"
     info "Home directory: $HOME"
+    echo ""
+
+    # Install tmux
+    install_tmux
+    echo ""
+
+    # Install neovim
+    install_neovim
+    echo ""
+
+    # Install neomutt
+    install_neomutt
+    echo ""
+
+    # Install zsh and oh-my-zsh
+    install_zsh
+    install_ohmyzsh
+    set_default_shell
     echo ""
 
     # Install regular files
@@ -103,11 +235,14 @@ main() {
 
     echo ""
     echo "Installed configurations:"
+    echo "  - zsh      (~/.zshrc + oh-my-zsh)"
     echo "  - tmux     (~/.tmux.conf)"
     echo "  - vim      (~/.vimrc, ~/.vimrc.plug)"
     echo "  - neovim   (~/.config/nvim/)"
+    echo "  - neomutt  (~/.neomuttrc)"
     echo ""
     echo "Note: You may need to:"
+    echo "  - Restart your terminal for zsh to take effect"
     echo "  - Run 'tmux source ~/.tmux.conf' to reload tmux config"
     echo "  - Run ':PlugInstall' in vim to install plugins"
     echo "  - Run ':PlugInstall' in neovim to install plugins"
