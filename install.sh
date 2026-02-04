@@ -33,11 +33,13 @@ FILES=(
     ".vimrc.plug"
     ".zshrc"
     ".neomuttrc"
+    ".claude/settings.local.json"
 )
 
 # Directories to install (relative to dotfiles directory)
 DIRS=(
     ".config/nvim"
+    ".claude/skills"
 )
 
 install_tmux() {
@@ -271,6 +273,7 @@ main() {
     echo "  - neovim   (~/.config/nvim/)"
     echo "  - neomutt  (~/.neomuttrc)"
     echo "  - ghostty  (terminal emulator)"
+    echo "  - claude   (~/.claude/settings.local.json, ~/.claude/skills/)"
     echo ""
     echo "Note: You may need to:"
     echo "  - Restart your terminal for zsh to take effect"
