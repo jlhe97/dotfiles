@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(/home/kaissa/dotfiles/install.sh)",
+      "WebFetch(domain:x.com)",
+      "WebFetch(domain:www.threads.com)",
+      "WebFetch(domain:medium.com)",
+      "WebSearch",
+      "WebFetch(domain:karozieminski.substack.com)"
+    ]
+  }
+}
