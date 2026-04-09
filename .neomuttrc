@@ -5,6 +5,7 @@ set real_name = "Juanlu Herrero"
 set imap_pass = "`gpg --quiet --decrypt ~/.neomutt/fastmail_pass.gpg`"
 set folder = "imaps://imap.fastmail.com/"
 set spool_file = "imaps://imap.fastmail.com/INBOX"
+set imap_check_subscribed = yes
 
 # Fastmail SMTP
 set smtp_url = "smtps://juanlu@fastmail.com@smtp.fastmail.com:465/"
@@ -14,3 +15,35 @@ set smtp_pass = "`gpg --quiet --decrypt ~/.neomutt/fastmail_pass.gpg`"
 set ssl_starttls = yes
 set editor = "nvim"
 
+# syntax highlighting
+color body green default "^[+].*"
+color body red default "^-.*"
+color body cyan default "^@@.*"
+color body brightyellow default "^diff.*"
+color body brightyellow default "^index.*"
+color body brightyellow default "^---.*"
+color body brightyellow default "^[+][+][+].*"
+color body magenta default "^commit [0-9a-f]+"
+color body blue default "^(Author|Date):.*"
+color body brightblue default "^Subject:.*"
+color body brightcyan default "^[A-Za-z-]+-by:.*"
+color body brightcyan default "^Cc:.*"
+
+# Readability
+set wrap = 0
+set pager_stop = yes
+set pager_index_lines = 10
+set sort = threads
+set sort_aux = last-date-received
+set index_format = "%4C %Z %{%b %d} %-20.20L %s"
+
+# Sidebar
+set sidebar_visible = yes
+set sidebar_width = 25
+set sidebar_format = "%B%?F? [%F]?%* %?N?%N/?%S"
+ 
+# Vim-like navigation
+bind pager j next-line
+bind pager k previous-line
+bind pager g top
+bind pager G bottom
