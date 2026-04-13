@@ -33,6 +33,8 @@ FILES=(
     ".vimrc.plug"
     ".zshrc"
     ".neomuttrc"
+    ".neomutt/macos.rc"
+    ".neomutt/linux.rc"
     ".claude/settings.local.json"
 )
 
@@ -237,6 +239,7 @@ main() {
         dest="$HOME/$file"
 
         if [ -f "$src" ]; then
+            mkdir -p "$(dirname "$dest")"
             backup_and_link "$src" "$dest"
         else
             warn "Source file not found: $src"
@@ -271,7 +274,7 @@ main() {
     echo "  - tmux     (~/.tmux.conf)"
     echo "  - vim      (~/.vimrc, ~/.vimrc.plug)"
     echo "  - neovim   (~/.config/nvim/)"
-    echo "  - neomutt  (~/.neomuttrc)"
+    echo "  - neomutt  (~/.neomuttrc, ~/.neomutt/)"
     echo "  - ghostty  (terminal emulator)"
     echo "  - claude   (~/.claude/settings.local.json, ~/.claude/skills/)"
     echo ""

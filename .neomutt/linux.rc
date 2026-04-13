@@ -1,0 +1,1 @@
+set ssl_ca_certificates_file = "/etc/ssl/certs/ca-certificates.crt"
