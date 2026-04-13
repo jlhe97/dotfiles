@@ -38,6 +38,13 @@ color body brightblue default "^Subject:.*"
 color body brightcyan default "^[A-Za-z-]+-by:.*"
 color body brightcyan default "^Cc:.*"
 
+# Quoted replies
+color quoted    blue       default
+color quoted1   cyan       default
+color quoted2   green      default
+color quoted3   yellow     default
+color quoted4   magenta    default
+
 # Readability
 set wrap = 0
 set pager_stop = yes
