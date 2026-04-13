@@ -121,15 +121,19 @@ install_ghostty() {
             echo "deb [signed-by=/usr/share/keyrings/ghostty-keyring.gpg] https://pkg.ghostty.org/apt stable main" | sudo tee /etc/apt/sources.list.d/ghostty.list
             sudo apt update && sudo apt install -y ghostty
         elif command -v dnf &> /dev/null; then
-            sudo dnf copr enable -y pgdev/ghostty
-            sudo dnf install -y ghostty
+            sudo dnf copr enable -y pgdev/ghostty && sudo dnf install -y ghostty
         elif command -v pacman &> /dev/null; then
             sudo pacman -S --noconfirm ghostty
         else
-            error "Could not detect package manager. Please install ghostty manually from https://ghostty.org"
-            exit 1
+            warn "Could not install ghostty. Install manually from https://ghostty.org"
+            return 0
         fi
-        info "ghostty installed successfully"
+
+        if command -v ghostty &> /dev/null; then
+            info "ghostty installed successfully"
+        else
+            warn "ghostty installation failed — skipping (optional dependency)"
+        fi
     fi
 }
 
@@ -223,8 +227,8 @@ main() {
     install_neomutt
     echo ""
 
-    # Install ghostty
-    install_ghostty
+    # Install ghostty (optional — may not be available on all platforms)
+    install_ghostty || true
     echo ""
 
     # Install zsh and oh-my-zsh
