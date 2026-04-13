@@ -6,14 +6,23 @@ set imap_pass = "`gpg --quiet --decrypt ~/.neomutt/fastmail_pass.gpg`"
 set folder = "imaps://imap.fastmail.com/"
 set spool_file = "imaps://imap.fastmail.com/INBOX"
 set imap_check_subscribed = yes
+set imap_idle = yes
+set imap_check_subscribed = yes
+set timeout = 60
+set mail_check = 120
 
 # Fastmail SMTP
-set smtp_url = "smtps://juanlu@fastmail.com@smtp.fastmail.com:465/"
+set smtp_url = "smtp://juanlu@fastmail.com@smtp.fastmail.com:587/"
 set smtp_pass = "`gpg --quiet --decrypt ~/.neomutt/fastmail_pass.gpg`"
+set smtp_authenticators = "plain"
 
 # General
 set ssl_starttls = yes
 set editor = "nvim"
+set record = "imaps://imap.fastmail.com/Sent"
+set copy = yes
+set certificate_file = "~/.neomutt/certificates"
+set ssl_force_tls = yes
 
 # syntax highlighting
 color body green default "^[+].*"
@@ -47,3 +56,6 @@ bind pager j next-line
 bind pager k previous-line
 bind pager g top
 bind pager G bottom
+
+# Platform-specific overrides
+source `uname -s | grep -q Darwin && echo ~/.neomutt/macos.rc || echo ~/.neomutt/linux.rc`
