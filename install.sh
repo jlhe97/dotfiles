@@ -170,8 +170,12 @@ set_default_shell() {
             info "Adding $zsh_path to /etc/shells"
             echo "$zsh_path" | sudo tee -a /etc/shells
         fi
-        chsh -s "$zsh_path"
-        info "Default shell changed to zsh (restart your terminal to take effect)"
+        if command -v chsh &> /dev/null; then
+            chsh -s "$zsh_path"
+            info "Default shell changed to zsh (restart your terminal to take effect)"
+        else
+            warn "chsh not found — change your default shell manually to $zsh_path"
+        fi
     fi
 }
 
