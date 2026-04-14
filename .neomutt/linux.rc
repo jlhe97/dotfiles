@@ -1,1 +1,4 @@
 set ssl_ca_certificates_file = "/etc/ssl/certs/ca-certificates.crt"
+
+# Source local overrides (not committed to public dotfiles)
+source `test -f ~/.neomutt/local.rc && echo ~/.neomutt/local.rc || echo /dev/null`

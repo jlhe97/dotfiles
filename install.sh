@@ -35,6 +35,8 @@ FILES=(
     ".neomuttrc"
     ".neomutt/macos.rc"
     ".neomutt/linux.rc"
+    ".neomutt/local.rc"
+    ".zshrc.local"
     ".claude/settings.local.json"
 )
 
@@ -240,6 +242,16 @@ main() {
     install_ohmyzsh
     set_default_shell
     echo ""
+
+    # Create local override files if they don't exist (gitignored, machine-specific)
+    if [ ! -f "$DOTFILES_DIR/.zshrc.local" ]; then
+        touch "$DOTFILES_DIR/.zshrc.local"
+        info "Created .zshrc.local (add machine-specific shell config here)"
+    fi
+    if [ ! -f "$DOTFILES_DIR/.neomutt/local.rc" ]; then
+        touch "$DOTFILES_DIR/.neomutt/local.rc"
+        info "Created .neomutt/local.rc (add machine-specific neomutt config here)"
+    fi
 
     # Install regular files
     for file in "${FILES[@]}"; do

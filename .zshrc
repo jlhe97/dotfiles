@@ -106,6 +106,9 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # email setup
 export TERM=xterm-256color
+
+# Source local overrides (not committed to public dotfiles)
+[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
 # Threading — important for mailing list patches
 set sort = "threads"
 set sort_aux = "date"

@@ -3,6 +3,10 @@
 .claude/stats-cache.json
 .claude/history.jsonl
 
+# Local overrides (machine-specific, not public)
+.zshrc.local
+.neomutt/local.rc
+
 # Claude ephemeral/session data
 .claude/cache/
 .claude/debug/
