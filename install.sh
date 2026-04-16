@@ -269,6 +269,33 @@ backup_and_link() {
     info "Linked $dest -> $src"
 }
 
+prompt_user_identity() {
+    local local_rc="$DOTFILES_DIR/.neomutt/local.rc"
+    local existing_name existing_email answer
+
+    if [ -f "$local_rc" ]; then
+        existing_name="$(grep 'real_name' "$local_rc" 2>/dev/null | sed 's/.*= *"\(.*\)"/\1/')"
+        existing_email="$(grep 'imap_user' "$local_rc" 2>/dev/null | sed 's/.*= *"\(.*\)"/\1/')"
+    fi
+
+    if [ -n "$existing_name" ] && [ -n "$existing_email" ]; then
+        info "Identity already set: $existing_name <$existing_email>"
+        read -r -p "Change it? [y/N] " answer
+        echo ""
+        if [[ "$answer" =~ ^[Yy]$ ]]; then
+            read -r -p "Enter your full name (e.g. Jane Smith): " USER_NAME
+            read -r -p "Enter your email address: " USER_EMAIL
+        else
+            USER_NAME="$existing_name"
+            USER_EMAIL="$existing_email"
+        fi
+    else
+        read -r -p "Enter your full name (e.g. Jane Smith): " USER_NAME
+        read -r -p "Enter your email address: " USER_EMAIL
+    fi
+    echo ""
+}
+
 main() {
     echo "=========================================="
     echo "       Dotfiles Installation Script      "
@@ -278,10 +305,7 @@ main() {
     info "Home directory: $HOME"
     echo ""
 
-    # Prompt for user identity
-    read -r -p "Enter your full name (e.g. Jane Smith): " USER_NAME
-    read -r -p "Enter your email address: " USER_EMAIL
-    echo ""
+    prompt_user_identity
 
     # Install tmux
     install_tmux
@@ -315,15 +339,13 @@ main() {
         touch "$DOTFILES_DIR/.zshrc.local"
         info "Created .zshrc.local (add machine-specific shell config here)"
     fi
-    if [ ! -f "$DOTFILES_DIR/.neomutt/local.rc" ]; then
-        {
-            echo "set imap_user = \"$USER_EMAIL\""
-            echo "set from = \"$USER_EMAIL\""
-            echo "set real_name = \"$USER_NAME\""
-            echo "set smtp_url = \"smtp://${USER_EMAIL}@smtp.fastmail.com:587/\""
-        } > "$DOTFILES_DIR/.neomutt/local.rc"
-        info "Created .neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
-    fi
+    {
+        echo "set imap_user = \"$USER_EMAIL\""
+        echo "set from = \"$USER_EMAIL\""
+        echo "set real_name = \"$USER_NAME\""
+        echo "set smtp_url = \"smtp://${USER_EMAIL}@smtp.fastmail.com:587/\""
+    } > "$DOTFILES_DIR/.neomutt/local.rc"
+    info "Written .neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
 
     # Install regular files
     for file in "${FILES[@]}"; do
