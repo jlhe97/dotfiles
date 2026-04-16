@@ -196,18 +196,22 @@ backup_and_link() {
     local src="$1"
     local dest="$2"
 
-    # If destination exists (file, directory, or symlink)
-    if [ -e "$dest" ] || [ -L "$dest" ]; then
-        # Create backup directory if it doesn't exist
-        mkdir -p "$BACKUP_DIR"
+    # Already points to the right place — nothing to do
+    if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$src" ]; then
+        return 0
+    fi
 
-        # Move existing file/dir to backup
+    if [ -L "$dest" ]; then
+        # Stale symlink pointing somewhere else — just replace it
+        rm "$dest"
+    elif [ -e "$dest" ]; then
+        # Real file or directory — back it up
+        mkdir -p "$BACKUP_DIR"
         local backup_path="$BACKUP_DIR/$(basename "$dest")"
         info "Backing up existing $dest to $backup_path"
         mv "$dest" "$backup_path"
     fi
 
-    # Create symlink
     ln -s "$src" "$dest"
     info "Linked $dest -> $src"
 }
@@ -219,6 +223,11 @@ main() {
     echo ""
     info "Dotfiles directory: $DOTFILES_DIR"
     info "Home directory: $HOME"
+    echo ""
+
+    # Prompt for user identity
+    read -r -p "Enter your full name (e.g. Jane Smith): " USER_NAME
+    read -r -p "Enter your email address: " USER_EMAIL
     echo ""
 
     # Install tmux
@@ -249,8 +258,13 @@ main() {
         info "Created .zshrc.local (add machine-specific shell config here)"
     fi
     if [ ! -f "$DOTFILES_DIR/.neomutt/local.rc" ]; then
-        touch "$DOTFILES_DIR/.neomutt/local.rc"
-        info "Created .neomutt/local.rc (add machine-specific neomutt config here)"
+        {
+            echo "set imap_user = \"$USER_EMAIL\""
+            echo "set from = \"$USER_EMAIL\""
+            echo "set real_name = \"$USER_NAME\""
+            echo "set smtp_url = \"smtp://${USER_EMAIL}@smtp.fastmail.com:587/\""
+        } > "$DOTFILES_DIR/.neomutt/local.rc"
+        info "Created .neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
     fi
 
     # Install regular files
@@ -323,31 +337,17 @@ main() {
     echo "   # If you don't have a GPG key, generate one first:"
     echo "   gpg --full-generate-key"
     echo ""
-    echo "   # Encrypt your Fastmail app password:"
-    echo "   echo 'YOUR_APP_PASSWORD' | gpg --encrypt -r your_email@example.com -o ~/.neomutt/fastmail_pass.gpg"
+    echo "   # Encrypt your app password:"
+    echo "   echo 'YOUR_APP_PASSWORD' | gpg --encrypt -r $USER_EMAIL -o ~/.neomutt/fastmail_pass.gpg"
     echo ""
     echo "   # Verify it works:"
     echo "   gpg --quiet --decrypt ~/.neomutt/fastmail_pass.gpg"
     echo ""
-    echo "4. Add the following to your ~/.neomuttrc:"
-    echo "   # Fastmail Account Settings"
-    echo "   set imap_user = 'your_email@fastmail.com'"
-    echo "   set imap_pass = \"\`gpg --quiet --decrypt ~/.neomutt/fastmail_pass.gpg\`\""
-    echo "   set smtp_url = 'smtps://your_email@fastmail.com@smtp.fastmail.com:465'"
-    echo "   set smtp_pass = \"\`gpg --quiet --decrypt ~/.neomutt/fastmail_pass.gpg\`\""
-    echo "   set from = 'your_email@fastmail.com'"
-    echo "   set realname = 'Your Name'"
-    echo ""
-    echo "   # IMAP Settings"
-    echo "   set folder = 'imaps://imap.fastmail.com:993'"
-    echo "   set spoolfile = '+INBOX'"
-    echo "   set postponed = '+Drafts'"
-    echo "   set record = '+Sent'"
-    echo "   set trash = '+Trash'"
-    echo ""
-    echo "   # SSL/TLS"
-    echo "   set ssl_starttls = yes"
-    echo "   set ssl_force_tls = yes"
+    echo "4. Your identity has been written to ~/.neomutt/local.rc:"
+    echo "   set imap_user = '$USER_EMAIL'"
+    echo "   set from = '$USER_EMAIL'"
+    echo "   set real_name = '$USER_NAME'"
+    echo "   set smtp_url = 'smtp://${USER_EMAIL}@smtp.fastmail.com:587/'"
     echo ""
     echo "=========================================="
 }
