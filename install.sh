@@ -139,6 +139,59 @@ install_ghostty() {
     fi
 }
 
+install_sapling() {
+    if command -v sl &> /dev/null; then
+        info "sapling is already installed"
+    else
+        info "Installing sapling..."
+        if command -v brew &> /dev/null; then
+            brew install sapling
+        elif command -v apt &> /dev/null || command -v dnf &> /dev/null; then
+            local tmp_tar tarball_url
+            tmp_tar="$(mktemp /tmp/sapling_XXXXXX.tar.xz)"
+            tarball_url="$(curl -fsSL https://api.github.com/repos/facebook/sapling/releases/latest | grep -o 'https://[^"]*linux-x64\.tar\.xz' | head -1)"
+            curl -fsSL "$tarball_url" -o "$tmp_tar"
+            sudo mkdir -p /usr/local/lib/sapling
+            sudo tar -xf "$tmp_tar" -C /usr/local/lib/sapling
+            sudo ln -sf /usr/local/lib/sapling/sl /usr/local/bin/sl
+            rm -f "$tmp_tar"
+        elif command -v pacman &> /dev/null; then
+            if command -v yay &> /dev/null; then
+                yay -S --noconfirm sapling-scm-bin
+            elif command -v paru &> /dev/null; then
+                paru -S --noconfirm sapling-scm-bin
+            else
+                warn "Could not install sapling — install an AUR helper (yay/paru) then run: yay -S sapling-scm-bin"
+                return 0
+            fi
+        else
+            warn "Could not install sapling. Install manually from https://sapling-scm.com/docs/introduction/installation"
+            return 0
+        fi
+
+        if command -v sl &> /dev/null; then
+            info "sapling installed successfully"
+        else
+            warn "sapling installation failed — install manually from https://sapling-scm.com/docs/introduction/installation"
+        fi
+    fi
+}
+
+configure_sapling() {
+    if ! command -v sl &> /dev/null; then
+        return 0
+    fi
+
+    local current
+    current="$(sl config ui.username 2>/dev/null || true)"
+    if [ -n "$current" ]; then
+        info "sapling identity already set: $current"
+    else
+        sl config --user ui.username "$1 <$2>"
+        info "sapling identity set to: $1 <$2>"
+    fi
+}
+
 install_zsh() {
     if command -v zsh &> /dev/null; then
         info "zsh is already installed"
@@ -242,6 +295,11 @@ main() {
     install_neomutt
     echo ""
 
+    # Install sapling
+    install_sapling
+    configure_sapling "$USER_NAME" "$USER_EMAIL"
+    echo ""
+
     # Install ghostty (optional — may not be available on all platforms)
     install_ghostty || true
     echo ""
@@ -309,6 +367,7 @@ main() {
     echo "  - vim      (~/.vimrc, ~/.vimrc.plug)"
     echo "  - neovim   (~/.config/nvim/)"
     echo "  - neomutt  (~/.neomuttrc, ~/.neomutt/)"
+    echo "  - sapling  (vcs — sl)"
     echo "  - ghostty  (terminal emulator)"
     echo "  - claude   (~/.claude/settings.local.json, ~/.claude/skills/)"
     echo ""
