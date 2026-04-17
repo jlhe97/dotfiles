@@ -5,9 +5,8 @@ set real_name = "Juanlu Herrero"
 set imap_pass = "`gpg --quiet --decrypt ~/.neomutt/fastmail_pass.gpg`"
 set folder = "imaps://imap.fastmail.com/"
 set spool_file = "imaps://imap.fastmail.com/INBOX"
-set imap_check_subscribed = yes
+set imap_check_subscribed = no
 set imap_idle = yes
-set imap_check_subscribed = yes
 set timeout = 60
 set mail_check = 120
 
@@ -23,6 +22,9 @@ set record = "imaps://imap.fastmail.com/Sent"
 set copy = yes
 set certificate_file = "~/.neomutt/certificates"
 set ssl_force_tls = yes
+
+# Platform-specific overrides (must be before mailboxes so $folder is correct)
+source `uname -s | grep -q Darwin && echo ~/.neomutt/macos.rc || echo ~/.neomutt/linux.rc`
 
 # syntax highlighting
 color body green default "^[+].*"
@@ -51,18 +53,39 @@ set pager_stop = yes
 set pager_index_lines = 10
 set sort = threads
 set sort_aux = last-date-received
+set strict_threads = yes
 set index_format = "%4C %Z %{%b %d} %-20.20L %s"
+
+# Mailboxes
+unmailboxes *
+named-mailboxes "INBOX" "+INBOX"
+named-mailboxes "  my-patches" ~/.mail/my-patches/
+named-mailboxes "  io_uring" ~/.mail/io_uring/
+named-mailboxes "  net-next" ~/.mail/net-next/
+named-mailboxes "Sent" "+Sent"
+named-mailboxes "Archive" "+Archive"
+named-mailboxes "Drafts" "+Drafts"
 
 # Sidebar
 set sidebar_visible = yes
 set sidebar_width = 25
 set sidebar_format = "%B%?F? [%F]?%* %?N?%N/?%S"
+set sidebar_sort_method = unsorted
+bind index,pager \Cj sidebar-next
+bind index,pager \Ck sidebar-prev
+bind index,pager \Co sidebar-open
+bind index,pager B sidebar-toggle-visible
  
+# Threading
+folder-hook . 'push <collapse-all>'
+bind index <return> collapse-thread
+bind index za collapse-thread
+bind index zA collapse-all
+bind index l display-message
+
 # Vim-like navigation
 bind pager j next-line
 bind pager k previous-line
 bind pager g top
 bind pager G bottom
 
-# Platform-specific overrides
-source `uname -s | grep -q Darwin && echo ~/.neomutt/macos.rc || echo ~/.neomutt/linux.rc`

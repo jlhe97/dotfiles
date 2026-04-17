@@ -1,0 +1,45 @@
+#!/bin/bash
+set -e
+
+export https_proxy="${https_proxy:-http://fwdproxy:8080}"
+
+MAIL_DIR="$HOME/.mail"
+
+if ! command -v lei &>/dev/null; then
+    echo "lei not found. Install public-inbox first." >&2
+    exit 1
+fi
+
+sync_netdev() {
+    local dir="$MAIL_DIR/net-next"
+    local list=l:netdev.vger.kernel.org
+
+    echo "Syncing net-next..."
+    mkdir -p "$MAIL_DIR"
+
+    lei q --no-local -t -o "Maildir:$dir" --no-save $list f:meta.com rt:1.month.ago..
+    lei q --no-local -t -a -o "Maildir:$dir" --no-save $list f:begunkov rt:1.month.ago..
+    lei q --no-local -t -a -o "Maildir:$dir" --no-save $list f:davidwei rt:1.month.ago..
+}
+
+sync_io_uring() {
+    local dir="$MAIL_DIR/io_uring"
+
+    echo "Syncing io_uring..."
+    mkdir -p "$MAIL_DIR"
+
+    lei q --no-local -t -o "Maildir:$dir" --no-save l:io-uring.vger.kernel.org rt:1.month.ago..
+}
+
+sync_my_patches() {
+    local dir="$MAIL_DIR/my-patches"
+
+    echo "Syncing my-patches..."
+    mkdir -p "$MAIL_DIR"
+
+    lei q --no-local -t -o "Maildir:$dir" --no-save f:juanlu@fastmail.com
+}
+
+sync_my_patches
+sync_io_uring
+sync_netdev
