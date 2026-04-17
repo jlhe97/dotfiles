@@ -192,6 +192,34 @@ configure_sapling() {
     fi
 }
 
+install_b4() {
+    if command -v b4 &> /dev/null; then
+        info "b4 is already installed"
+    else
+        info "Installing b4..."
+        if command -v pipx &> /dev/null; then
+            pipx install b4
+        elif command -v brew &> /dev/null; then
+            brew install b4
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y b4
+        elif command -v apt &> /dev/null; then
+            sudo apt update && sudo apt install -y b4
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm b4
+        else
+            warn "Could not install b4. Install manually: pip install b4"
+            return 0
+        fi
+
+        if command -v b4 &> /dev/null; then
+            info "b4 installed successfully"
+        else
+            warn "b4 installation failed — install manually: pip install b4"
+        fi
+    fi
+}
+
 install_zsh() {
     if command -v zsh &> /dev/null; then
         info "zsh is already installed"
@@ -322,6 +350,10 @@ main() {
     # Install sapling
     install_sapling
     configure_sapling "$USER_NAME" "$USER_EMAIL"
+    echo ""
+
+    # Install b4 (mailing list patch tool)
+    install_b4 || true
     echo ""
 
     # Install ghostty (optional — may not be available on all platforms)
