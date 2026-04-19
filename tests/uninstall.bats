@@ -129,3 +129,53 @@ remove_dotfile_symlinks() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"does not exist"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# uninstall_* failure handling
+# ---------------------------------------------------------------------------
+
+@test "uninstall_tmux returns 1 with a warning when no package manager is found" {
+  # Create the fake bin and stub tmux BEFORE overriding PATH
+  mkdir -p "$TEST_HOME/empty_bin"
+  printf '#!/bin/bash\nexit 0\n' > "$TEST_HOME/empty_bin/tmux"
+  chmod +x "$TEST_HOME/empty_bin/tmux"
+  local orig_path="$PATH"
+  export PATH="$TEST_HOME/empty_bin"
+
+  run uninstall_tmux
+
+  export PATH="$orig_path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"[WARN]"* ]]
+  [[ "$output" != *"tmux uninstalled"* ]]
+}
+
+@test "uninstall_neovim returns 1 with a warning when no package manager is found" {
+  mkdir -p "$TEST_HOME/empty_bin"
+  printf '#!/bin/bash\nexit 0\n' > "$TEST_HOME/empty_bin/nvim"
+  chmod +x "$TEST_HOME/empty_bin/nvim"
+  local orig_path="$PATH"
+  export PATH="$TEST_HOME/empty_bin"
+
+  run uninstall_neovim
+
+  export PATH="$orig_path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"[WARN]"* ]]
+  [[ "$output" != *"neovim uninstalled"* ]]
+}
+
+@test "uninstall_zsh returns 1 with a warning when no package manager is found" {
+  mkdir -p "$TEST_HOME/empty_bin"
+  printf '#!/bin/bash\nexit 0\n' > "$TEST_HOME/empty_bin/zsh"
+  chmod +x "$TEST_HOME/empty_bin/zsh"
+  local orig_path="$PATH"
+  export PATH="$TEST_HOME/empty_bin"
+
+  run uninstall_zsh
+
+  export PATH="$orig_path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"[WARN]"* ]]
+  [[ "$output" != *"zsh uninstalled"* ]]
+}
