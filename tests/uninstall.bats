@@ -10,10 +10,9 @@ setup() {
   export HOME="$TEST_HOME"
 
   # Source uninstall.sh functions without triggering `set -e` or `main "$@"`.
-  # head -n -1 drops the trailing main call.
   local tmpfile
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$DOTFILES_DIR/uninstall.sh" | head -n -1 > "$tmpfile"
+  grep -v '^set -e' "$DOTFILES_DIR/uninstall.sh" | grep -v '^main ' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"
@@ -41,6 +40,26 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"[WARN]"* ]]
   [[ "$output" == *"watch out"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# --skip-packages flag
+# ---------------------------------------------------------------------------
+
+@test "--skip-packages skips the prompt and package uninstallation" {
+  ln -s "$DOTFILES_DIR/.tmux.conf" "$TEST_HOME/.tmux.conf"
+
+  run main --skip-packages
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Skipping package uninstallation"* ]]
+}
+
+@test "unknown option exits with error" {
+  run main --bad-flag
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Unknown option"* ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -178,4 +197,27 @@ remove_dotfile_symlinks() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"[WARN]"* ]]
   [[ "$output" != *"zsh uninstalled"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# ERR trap — mid-function failure detail
+# ---------------------------------------------------------------------------
+
+@test "uninstall_tmux emits command-failed detail when the package manager command fails" {
+  # set +e so non-zero return doesn't exit the test; no || wrapper so trap isn't suppressed.
+  mkdir -p "$TEST_HOME/empty_bin"
+  printf '#!/bin/bash\nexec "$@"\n' > "$TEST_HOME/empty_bin/sudo"
+  printf '#!/bin/bash\nexit 1\n'    > "$TEST_HOME/empty_bin/apt"
+  printf '#!/bin/bash\nexit 0\n'    > "$TEST_HOME/empty_bin/tmux"
+  chmod +x "$TEST_HOME/empty_bin/sudo" "$TEST_HOME/empty_bin/apt" "$TEST_HOME/empty_bin/tmux"
+  local orig_path="$PATH"
+  export PATH="$TEST_HOME/empty_bin"
+
+  local captured
+  set +e
+  captured="$(uninstall_tmux 2>&1)"
+  set -e
+
+  export PATH="$orig_path"
+  [[ "$captured" == *"command failed"* ]]
 }

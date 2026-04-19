@@ -47,6 +47,7 @@ DIRS=(
 )
 
 install_tmux() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v tmux &> /dev/null; then
         info "tmux is already installed"
     else
@@ -73,6 +74,7 @@ install_tmux() {
 }
 
 install_neovim() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v nvim &> /dev/null; then
         info "neovim is already installed"
     else
@@ -99,6 +101,7 @@ install_neovim() {
 }
 
 install_neomutt() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v neomutt &> /dev/null; then
         info "neomutt is already installed"
     else
@@ -125,6 +128,7 @@ install_neomutt() {
 }
 
 install_ghostty() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v ghostty &> /dev/null; then
         info "ghostty is already installed"
     else
@@ -155,6 +159,7 @@ install_ghostty() {
 }
 
 install_sapling() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v sl &> /dev/null; then
         info "sapling is already installed"
     else
@@ -208,6 +213,7 @@ configure_sapling() {
 }
 
 install_b4() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v b4 &> /dev/null; then
         info "b4 is already installed"
     else
@@ -236,6 +242,7 @@ install_b4() {
 }
 
 install_zsh() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v zsh &> /dev/null; then
         info "zsh is already installed"
     else
@@ -262,6 +269,7 @@ install_zsh() {
 }
 
 set_default_shell() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     local zsh_path
     zsh_path="$(which zsh)"
 
@@ -283,6 +291,7 @@ set_default_shell() {
 }
 
 install_ohmyzsh() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if [ -d "$HOME/.oh-my-zsh" ]; then
         info "oh-my-zsh is already installed"
     else

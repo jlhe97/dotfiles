@@ -16,7 +16,8 @@ keybindings
 ```sh
 ./install.sh                                   # symlink dotfiles into ~
 ./install.sh --name "Jane Smith" --email "jane@example.com"  # non-interactive / CI
-./uninstall.sh                                 # remove symlinks
+./uninstall.sh                                 # remove symlinks (prompts about packages)
+./uninstall.sh --skip-packages                 # remove symlinks only, no prompt
 ```
 
 Re-running `install.sh` is safe — it skips packages already installed, leaves

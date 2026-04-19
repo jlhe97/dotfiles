@@ -3,7 +3,7 @@
 # End-to-end idempotency tests for uninstall.sh.
 # Each test installs first (via main() from install.sh) to create real
 # symlinks, then exercises uninstall.sh's main() with system operations
-# stubbed and the package-removal prompt answered "n" via stdin.
+# stubbed and --skip-packages to avoid the interactive prompt.
 
 REAL_DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 
@@ -27,7 +27,7 @@ setup() {
   # --- Source install.sh and run it to lay down symlinks ---
   local tmpfile
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | head -n -2 > "$tmpfile"
+  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"
@@ -49,7 +49,7 @@ setup() {
 
   # --- Source uninstall.sh (overwrites shared helpers like info/warn) ---
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$REAL_DOTFILES_DIR/uninstall.sh" | head -n -1 > "$tmpfile"
+  grep -v '^set -e' "$REAL_DOTFILES_DIR/uninstall.sh" | grep -v '^main ' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"
@@ -69,9 +69,8 @@ teardown() {
   rm -rf "$TEST_HOME"
 }
 
-# Feed "n" to the package-removal prompt so main() skips package uninstalls.
 _uninstall() {
-  echo "n" | main
+  main --skip-packages
 }
 
 # ---------------------------------------------------------------------------
@@ -92,15 +91,15 @@ _uninstall() {
 }
 
 @test "second uninstall exits cleanly" {
-  echo "n" | main >/dev/null
+  main --skip-packages >/dev/null
   # If this exits non-zero BATS will fail the test
-  echo "n" | main >/dev/null
+  main --skip-packages >/dev/null
 }
 
 @test "second uninstall warns about missing targets rather than erroring" {
-  echo "n" | main >/dev/null
+  main --skip-packages >/dev/null
   local output
-  output="$(echo "n" | main 2>&1)"
+  output="$(main --skip-packages 2>&1)"
   [[ "$output" == *"does not exist"* ]]
 }
 
@@ -130,12 +129,12 @@ _uninstall() {
 
 @test "full round-trip: install → uninstall → reinstall leaves symlinks intact" {
   # uninstall (install already ran in setup)
-  echo "n" | main >/dev/null
+  main --skip-packages >/dev/null
 
   # reinstall — source install functions again
   local tmpfile
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | head -n -2 > "$tmpfile"
+  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"
