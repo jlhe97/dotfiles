@@ -199,3 +199,26 @@ remove_dotfile_symlinks() {
   [[ "$output" == *"[WARN]"* ]]
   [[ "$output" != *"zsh uninstalled"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# ERR trap — mid-function failure detail
+# ---------------------------------------------------------------------------
+
+@test "uninstall_tmux emits command-failed detail when the package manager command fails" {
+  # set +e so non-zero return doesn't exit the test; no || wrapper so trap isn't suppressed.
+  mkdir -p "$TEST_HOME/empty_bin"
+  printf '#!/bin/bash\nexec "$@"\n' > "$TEST_HOME/empty_bin/sudo"
+  printf '#!/bin/bash\nexit 1\n'    > "$TEST_HOME/empty_bin/apt"
+  printf '#!/bin/bash\nexit 0\n'    > "$TEST_HOME/empty_bin/tmux"
+  chmod +x "$TEST_HOME/empty_bin/sudo" "$TEST_HOME/empty_bin/apt" "$TEST_HOME/empty_bin/tmux"
+  local orig_path="$PATH"
+  export PATH="$TEST_HOME/empty_bin"
+
+  local captured
+  set +e
+  captured="$(uninstall_tmux 2>&1)"
+  set -e
+
+  export PATH="$orig_path"
+  [[ "$captured" == *"command failed"* ]]
+}

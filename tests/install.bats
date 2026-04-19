@@ -292,3 +292,25 @@ EOF
   [ "$status" -eq 1 ]
   [[ "$output" == *"[WARN]"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# ERR trap — mid-function failure detail
+# ---------------------------------------------------------------------------
+
+@test "install_tmux emits command-failed detail when the package manager command fails" {
+  # apt smart stub: "update" succeeds so && continues; "install" fails → ERR trap fires.
+  # set +e so non-zero return doesn't exit the test; no || wrapper so trap isn't suppressed.
+  printf '#!/bin/bash\nexec "$@"\n'                                  > "$MOCK_BIN/sudo"
+  printf '#!/bin/bash\n[[ "$1" == "install" ]] && exit 1\nexit 0\n' > "$MOCK_BIN/apt"
+  chmod +x "$MOCK_BIN/sudo" "$MOCK_BIN/apt"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  local captured
+  set +e
+  captured="$(install_tmux 2>&1)"
+  set -e
+
+  export PATH="$orig_path"
+  [[ "$captured" == *"command failed"* ]]
+}

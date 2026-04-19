@@ -36,6 +36,7 @@ TARGETS=(
 )
 
 uninstall_tmux() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v tmux &> /dev/null; then
         info "Uninstalling tmux..."
         if command -v apt &> /dev/null; then
@@ -57,6 +58,7 @@ uninstall_tmux() {
 }
 
 uninstall_neovim() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v nvim &> /dev/null; then
         info "Uninstalling neovim..."
         if command -v apt &> /dev/null; then
@@ -78,6 +80,7 @@ uninstall_neovim() {
 }
 
 uninstall_neomutt() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v neomutt &> /dev/null; then
         info "Uninstalling neomutt..."
         if command -v apt &> /dev/null; then
@@ -99,6 +102,7 @@ uninstall_neomutt() {
 }
 
 uninstall_ghostty() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v ghostty &> /dev/null; then
         info "Uninstalling ghostty..."
         if command -v brew &> /dev/null; then
@@ -123,6 +127,7 @@ uninstall_ghostty() {
 }
 
 uninstall_ohmyzsh() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if [ -d "$HOME/.oh-my-zsh" ]; then
         info "Removing oh-my-zsh..."
         rm -rf "$HOME/.oh-my-zsh"
@@ -133,6 +138,7 @@ uninstall_ohmyzsh() {
 }
 
 restore_default_shell() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     local bash_path
     bash_path="$(which bash)"
 
@@ -146,6 +152,7 @@ restore_default_shell() {
 }
 
 uninstall_zsh() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v zsh &> /dev/null; then
         info "Uninstalling zsh..."
         if command -v apt &> /dev/null; then
