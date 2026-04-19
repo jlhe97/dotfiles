@@ -191,10 +191,12 @@ teardown() {
 # ---------------------------------------------------------------------------
 
 @test "configure_sapling returns 0 silently when sl is not on PATH" {
+  local orig_path="$PATH"
   export PATH="$MOCK_BIN"
 
   run configure_sapling "Test User" "user@example.com"
 
+  export PATH="$orig_path"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
