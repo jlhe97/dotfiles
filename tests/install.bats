@@ -293,6 +293,53 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# install_via_packagefile
+# ---------------------------------------------------------------------------
+
+@test "install_via_packagefile installs each package from apt.txt via apt" {
+  local log="$TEST_HOME/apt.log"
+  cat > "$MOCK_BIN/sudo" << 'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+  cat > "$MOCK_BIN/apt" << EOF
+#!/bin/bash
+echo "apt \$*" >> "$log"
+EOF
+  chmod +x "$MOCK_BIN/sudo" "$MOCK_BIN/apt"
+
+  # minimal package list in a temp dotfiles dir
+  local fake_dotfiles="$TEST_HOME/fake_dotfiles"
+  mkdir -p "$fake_dotfiles/packages"
+  printf 'tmux\n# a comment\n\nzsh\n' > "$fake_dotfiles/packages/apt.txt"
+  DOTFILES_DIR="$fake_dotfiles"
+
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_via_packagefile
+
+  export PATH="$orig_path"
+  DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
+
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$log")" == *"install -y tmux"* ]]
+  [[ "$(cat "$log")" == *"install -y zsh"* ]]
+  [[ "$(cat "$log")" != *"a comment"* ]]
+}
+
+@test "install_via_packagefile returns 1 when no package manager is found" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_via_packagefile
+
+  export PATH="$orig_path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"[WARN]"* ]]
+}
+
+# ---------------------------------------------------------------------------
 # ERR trap — mid-function failure detail
 # ---------------------------------------------------------------------------
 
