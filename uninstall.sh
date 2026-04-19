@@ -44,6 +44,7 @@ uninstall_tmux() {
             brew uninstall tmux
         else
             warn "Could not detect package manager. Please uninstall tmux manually."
+            return 1
         fi
         info "tmux uninstalled"
     else
@@ -64,6 +65,7 @@ uninstall_neovim() {
             brew uninstall neovim
         else
             warn "Could not detect package manager. Please uninstall neovim manually."
+            return 1
         fi
         info "neovim uninstalled"
     else
@@ -84,6 +86,7 @@ uninstall_neomutt() {
             brew uninstall neomutt
         else
             warn "Could not detect package manager. Please uninstall neomutt manually."
+            return 1
         fi
         info "neomutt uninstalled"
     else
@@ -107,6 +110,7 @@ uninstall_ghostty() {
             sudo pacman -Rs --noconfirm ghostty
         else
             warn "Could not detect package manager. Please uninstall ghostty manually."
+            return 1
         fi
         info "ghostty uninstalled"
     else
@@ -150,6 +154,7 @@ uninstall_zsh() {
             brew uninstall zsh
         else
             warn "Could not detect package manager. Please uninstall zsh manually."
+            return 1
         fi
         info "zsh uninstalled"
     else
@@ -190,19 +195,19 @@ main() {
 
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo ""
-        uninstall_tmux
+        uninstall_tmux    || warn "tmux uninstallation failed — remove manually"
         echo ""
-        uninstall_neovim
+        uninstall_neovim  || warn "neovim uninstallation failed — remove manually"
         echo ""
-        uninstall_neomutt
+        uninstall_neomutt || warn "neomutt uninstallation failed — remove manually"
         echo ""
-        uninstall_ghostty
+        uninstall_ghostty || warn "ghostty uninstallation failed — remove manually"
         echo ""
-        uninstall_ohmyzsh
+        uninstall_ohmyzsh || warn "oh-my-zsh removal failed — remove manually"
         echo ""
-        restore_default_shell
+        restore_default_shell || warn "could not restore default shell — run: chsh -s \$(which bash)"
         echo ""
-        uninstall_zsh
+        uninstall_zsh     || warn "zsh uninstallation failed — remove manually"
     else
         info "Skipping package uninstallation"
     fi
