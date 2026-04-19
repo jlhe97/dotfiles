@@ -313,6 +313,33 @@ install_via_brewfile() {
     info "Brewfile packages installed"
 }
 
+install_via_packagefile() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
+    local pkg_file install_cmd
+    if command -v apt &>/dev/null; then
+        pkg_file="$DOTFILES_DIR/packages/apt.txt"
+        install_cmd="sudo apt install -y"
+        info "Updating apt..."
+        sudo apt update
+    elif command -v dnf &>/dev/null; then
+        pkg_file="$DOTFILES_DIR/packages/dnf.txt"
+        install_cmd="sudo dnf install -y"
+    elif command -v pacman &>/dev/null; then
+        pkg_file="$DOTFILES_DIR/packages/pacman.txt"
+        install_cmd="sudo pacman -S --noconfirm"
+    else
+        warn "No supported package manager found (apt/dnf/pacman)"
+        return 1
+    fi
+    info "Installing packages from $(basename "$pkg_file")..."
+    local pkg
+    while IFS= read -r pkg || [[ -n "$pkg" ]]; do
+        [[ -z "$pkg" || "$pkg" == \#* ]] && continue
+        $install_cmd "$pkg" || warn "failed to install $pkg — skipping"
+    done < "$pkg_file"
+    info "Package installation complete"
+}
+
 backup_and_link() {
     local src="$1"
     local dest="$2"
@@ -410,20 +437,13 @@ main() {
         install_via_brewfile || warn "Brewfile install incomplete — some packages may be missing"
         echo ""
     else
-        # Linux: per-tool functions (apt / dnf / pacman)
-        install_tmux    || warn "tmux installation failed — continuing without it"
-        echo ""
-        install_neovim  || warn "neovim installation failed — continuing without it"
-        echo ""
-        install_neomutt || warn "neomutt installation failed — continuing without it"
+        # Linux: package list file (apt/dnf/pacman) for standard packages,
+        # then individual functions for tools needing custom install steps
+        install_via_packagefile || warn "some packages failed — check output above"
         echo ""
         install_sapling || true
         echo ""
-        install_b4      || true
-        echo ""
         install_ghostty || true
-        echo ""
-        install_zsh     || warn "zsh installation failed — continuing without it"
         echo ""
     fi
 
