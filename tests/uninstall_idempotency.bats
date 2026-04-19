@@ -34,16 +34,17 @@ setup() {
 
   DOTFILES_DIR="$FAKE_DOTFILES"
 
-  install_tmux()      { :; }
-  install_neovim()    { :; }
-  install_neomutt()   { :; }
-  install_ghostty()   { :; }
-  install_sapling()   { :; }
-  configure_sapling() { :; }
-  install_b4()        { :; }
-  install_zsh()       { :; }
-  install_ohmyzsh()   { :; }
-  set_default_shell() { :; }
+  install_via_brewfile() { :; }
+  install_tmux()         { :; }
+  install_neovim()       { :; }
+  install_neomutt()      { :; }
+  install_ghostty()      { :; }
+  install_sapling()      { :; }
+  configure_sapling()    { :; }
+  install_b4()           { :; }
+  install_zsh()          { :; }
+  install_ohmyzsh()      { :; }
+  set_default_shell()    { :; }
 
   main --name "Test User" --email "test@example.com" >/dev/null
 
@@ -140,6 +141,7 @@ _uninstall() {
   rm -f "$tmpfile"
 
   DOTFILES_DIR="$FAKE_DOTFILES"
+  install_via_brewfile() { :; }
   install_tmux()      { :; }; install_neovim()  { :; }; install_neomutt()   { :; }
   install_ghostty()   { :; }; install_sapling() { :; }; configure_sapling() { :; }
   install_b4()        { :; }; install_zsh()     { :; }; install_ohmyzsh()   { :; }
