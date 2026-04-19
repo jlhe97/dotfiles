@@ -302,6 +302,17 @@ install_ohmyzsh() {
     fi
 }
 
+install_via_brewfile() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
+    if ! command -v brew &>/dev/null; then
+        warn "Homebrew not found — install from https://brew.sh then re-run"
+        return 1
+    fi
+    info "Installing packages via Brewfile..."
+    brew bundle install --no-upgrade --file="$DOTFILES_DIR/Brewfile"
+    info "Brewfile packages installed"
+}
+
 backup_and_link() {
     local src="$1"
     local dest="$2"
@@ -394,33 +405,29 @@ main() {
 
     resolve_identity
 
-    # Install tmux
-    install_tmux || warn "tmux installation failed — continuing without it"
-    echo ""
+    if [[ "$(uname)" == "Darwin" ]]; then
+        # macOS: declarative install via Brewfile (tmux, neovim, neomutt, sapling, b4, ghostty, zsh)
+        install_via_brewfile || warn "Brewfile install incomplete — some packages may be missing"
+        echo ""
+    else
+        # Linux: per-tool functions (apt / dnf / pacman)
+        install_tmux    || warn "tmux installation failed — continuing without it"
+        echo ""
+        install_neovim  || warn "neovim installation failed — continuing without it"
+        echo ""
+        install_neomutt || warn "neomutt installation failed — continuing without it"
+        echo ""
+        install_sapling || true
+        echo ""
+        install_b4      || true
+        echo ""
+        install_ghostty || true
+        echo ""
+        install_zsh     || warn "zsh installation failed — continuing without it"
+        echo ""
+    fi
 
-    # Install neovim
-    install_neovim || warn "neovim installation failed — continuing without it"
-    echo ""
-
-    # Install neomutt
-    install_neomutt || warn "neomutt installation failed — continuing without it"
-    echo ""
-
-    # Install sapling
-    install_sapling || true
     configure_sapling "$USER_NAME" "$USER_EMAIL" || true
-    echo ""
-
-    # Install b4 (mailing list patch tool)
-    install_b4 || true
-    echo ""
-
-    # Install ghostty (optional — may not be available on all platforms)
-    install_ghostty || true
-    echo ""
-
-    # Install zsh and oh-my-zsh
-    install_zsh || warn "zsh installation failed — continuing without it"
     install_ohmyzsh || warn "oh-my-zsh installation failed — continuing without it"
     set_default_shell || warn "could not set default shell — run: chsh -s \$(which zsh)"
     echo ""

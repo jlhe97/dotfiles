@@ -1,0 +1,7 @@
+brew "tmux"
+brew "neovim"
+brew "neomutt"
+brew "sapling"
+brew "b4"
+brew "zsh"
+cask "ghostty"
