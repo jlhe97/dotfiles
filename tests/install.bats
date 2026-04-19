@@ -10,10 +10,9 @@ setup() {
   export HOME="$TEST_HOME"
 
   # Source install.sh functions without triggering `set -e` or `main "$@"`.
-  # head -n -2 drops the trailing comment + main call.
   local tmpfile
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$DOTFILES_DIR/install.sh" | head -n -2 > "$tmpfile"
+  grep -v '^set -e' "$DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"

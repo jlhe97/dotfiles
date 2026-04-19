@@ -27,7 +27,7 @@ setup() {
   # --- Source install.sh and run it to lay down symlinks ---
   local tmpfile
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | head -n -2 > "$tmpfile"
+  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"
@@ -49,7 +49,7 @@ setup() {
 
   # --- Source uninstall.sh (overwrites shared helpers like info/warn) ---
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$REAL_DOTFILES_DIR/uninstall.sh" | head -n -1 > "$tmpfile"
+  grep -v '^set -e' "$REAL_DOTFILES_DIR/uninstall.sh" | grep -v '^main ' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"
@@ -134,7 +134,7 @@ _uninstall() {
   # reinstall — source install functions again
   local tmpfile
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | head -n -2 > "$tmpfile"
+  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"

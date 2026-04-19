@@ -10,10 +10,9 @@ setup() {
   export HOME="$TEST_HOME"
 
   # Source uninstall.sh functions without triggering `set -e` or `main "$@"`.
-  # head -n -1 drops the trailing main call.
   local tmpfile
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$DOTFILES_DIR/uninstall.sh" | head -n -1 > "$tmpfile"
+  grep -v '^set -e' "$DOTFILES_DIR/uninstall.sh" | grep -v '^main ' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"

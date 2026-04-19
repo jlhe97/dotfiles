@@ -30,7 +30,7 @@ setup() {
   # Source install functions without running main or set -e.
   local tmpfile
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$DOTFILES_DIR/install.sh" | head -n -2 > "$tmpfile"
+  grep -v '^set -e' "$DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"
