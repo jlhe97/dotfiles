@@ -1,0 +1,6 @@
+tmux
+neovim
+neomutt
+b4
+zsh
+ghostty

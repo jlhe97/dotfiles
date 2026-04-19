@@ -328,6 +328,64 @@ EOF
   [[ "$(cat "$log")" != *"a comment"* ]]
 }
 
+@test "install_via_packagefile installs each package from pacman.txt via pacman" {
+  local log="$TEST_HOME/pacman.log"
+  cat > "$MOCK_BIN/sudo" << 'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+  cat > "$MOCK_BIN/pacman" << EOF
+#!/bin/bash
+echo "pacman \$*" >> "$log"
+EOF
+  chmod +x "$MOCK_BIN/sudo" "$MOCK_BIN/pacman"
+
+  local fake_dotfiles="$TEST_HOME/fake_dotfiles"
+  mkdir -p "$fake_dotfiles/packages"
+  printf 'tmux\nghostty\n' > "$fake_dotfiles/packages/pacman.txt"
+  DOTFILES_DIR="$fake_dotfiles"
+
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_via_packagefile
+
+  export PATH="$orig_path"
+  DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
+
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$log")" == *"-S --noconfirm tmux"* ]]
+  [[ "$(cat "$log")" == *"-S --noconfirm ghostty"* ]]
+}
+
+@test "install_via_packagefile returns 1 when the package file is missing" {
+  local log="$TEST_HOME/apt.log"
+  cat > "$MOCK_BIN/sudo" << 'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+  cat > "$MOCK_BIN/apt" << EOF
+#!/bin/bash
+echo "apt \$*" >> "$log"
+EOF
+  chmod +x "$MOCK_BIN/sudo" "$MOCK_BIN/apt"
+
+  # DOTFILES_DIR with no packages/ subdirectory
+  DOTFILES_DIR="$TEST_HOME/empty_dotfiles"
+  mkdir -p "$DOTFILES_DIR"
+
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_via_packagefile
+
+  export PATH="$orig_path"
+  DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"[WARN]"* ]]
+}
+
 @test "install_via_packagefile returns 1 when no package manager is found" {
   local orig_path="$PATH"
   export PATH="$MOCK_BIN"

@@ -331,6 +331,10 @@ install_via_packagefile() {
         warn "No supported package manager found (apt/dnf/pacman)"
         return 1
     fi
+    if [[ ! -f "$pkg_file" ]]; then
+        warn "Package file not found: $pkg_file"
+        return 1
+    fi
     info "Installing packages from $(basename "$pkg_file")..."
     local pkg
     while IFS= read -r pkg || [[ -n "$pkg" ]]; do
