@@ -21,6 +21,10 @@ warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
+error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
 # Files and directories to uninstall
 TARGETS=(
     "$HOME/.tmux.conf"
@@ -163,6 +167,22 @@ uninstall_zsh() {
 }
 
 main() {
+    local skip_packages=false
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --skip-packages)
+                skip_packages=true
+                shift
+                ;;
+            *)
+                error "Unknown option: $1"
+                echo "Usage: $0 [--skip-packages]"
+                exit 1
+                ;;
+        esac
+    done
+
     echo "=========================================="
     echo "      Dotfiles Uninstallation Script     "
     echo "=========================================="
@@ -189,11 +209,14 @@ main() {
 
     echo ""
 
-    # Ask about uninstalling packages
-    read -p "Do you want to uninstall packages (tmux, neovim, neomutt, ghostty, zsh, oh-my-zsh)? [y/N] " -n 1 -r
-    echo ""
+    if [ "$skip_packages" = true ]; then
+        info "Skipping package uninstallation (--skip-packages)"
+    else
+        read -p "Do you want to uninstall packages (tmux, neovim, neomutt, ghostty, zsh, oh-my-zsh)? [y/N] " -n 1 -r
+        echo ""
+    fi
 
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if [ "$skip_packages" = false ] && [[ $REPLY =~ ^[Yy]$ ]]; then
         echo ""
         uninstall_tmux    || warn "tmux uninstallation failed — remove manually"
         echo ""

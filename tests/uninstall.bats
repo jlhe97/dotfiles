@@ -44,6 +44,26 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
+# --skip-packages flag
+# ---------------------------------------------------------------------------
+
+@test "--skip-packages skips the prompt and package uninstallation" {
+  ln -s "$DOTFILES_DIR/.tmux.conf" "$TEST_HOME/.tmux.conf"
+
+  run main --skip-packages
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Skipping package uninstallation"* ]]
+}
+
+@test "unknown option exits with error" {
+  run main --bad-flag
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Unknown option"* ]]
+}
+
+# ---------------------------------------------------------------------------
 # uninstall_ohmyzsh
 # ---------------------------------------------------------------------------
 
