@@ -130,6 +130,18 @@ _install() {
   [[ "$content" == *"new@example.com"* ]]
 }
 
+@test "install continues and creates symlinks even when a tool install fails" {
+  # Stub install_tmux to simulate a failure (e.g. ghostty on a devserver)
+  install_tmux() { return 1; }
+
+  _install
+
+  # Symlinks for other files should still be created
+  [ -L "$TEST_HOME/.vimrc" ]
+  [ -L "$TEST_HOME/.zshrc" ]
+  [ -L "$TEST_HOME/.neomuttrc" ]
+}
+
 @test "pre-existing file is backed up on first run then left alone on second" {
   echo "my old tmux config" > "$TEST_HOME/.tmux.conf"
 
