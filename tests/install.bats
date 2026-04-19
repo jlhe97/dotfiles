@@ -244,3 +244,51 @@ EOF
   [ "$status" -eq 0 ]
   [[ "$output" == *"already installed"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# install_* failure handling
+# ---------------------------------------------------------------------------
+
+@test "install_tmux returns 1 (not exit) when no package manager is found" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"  # empty bin: no apt/dnf/pacman/brew/tmux
+
+  run install_tmux
+
+  export PATH="$orig_path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"[WARN]"* ]]
+}
+
+@test "install_neovim returns 1 (not exit) when no package manager is found" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_neovim
+
+  export PATH="$orig_path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"[WARN]"* ]]
+}
+
+@test "install_neomutt returns 1 (not exit) when no package manager is found" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_neomutt
+
+  export PATH="$orig_path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"[WARN]"* ]]
+}
+
+@test "install_zsh returns 1 (not exit) when no package manager is found" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_zsh
+
+  export PATH="$orig_path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"[WARN]"* ]]
+}

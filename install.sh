@@ -60,10 +60,15 @@ install_tmux() {
         elif command -v brew &> /dev/null; then
             brew install tmux
         else
-            error "Could not detect package manager. Please install tmux manually."
-            exit 1
+            warn "Could not detect package manager. Please install tmux manually."
+            return 1
         fi
-        info "tmux installed successfully"
+        if command -v tmux &> /dev/null; then
+            info "tmux installed successfully"
+        else
+            warn "tmux installation failed — install manually and re-run"
+            return 1
+        fi
     fi
 }
 
@@ -81,10 +86,15 @@ install_neovim() {
         elif command -v brew &> /dev/null; then
             brew install neovim
         else
-            error "Could not detect package manager. Please install neovim manually."
-            exit 1
+            warn "Could not detect package manager. Please install neovim manually."
+            return 1
         fi
-        info "neovim installed successfully"
+        if command -v nvim &> /dev/null; then
+            info "neovim installed successfully"
+        else
+            warn "neovim installation failed — install manually and re-run"
+            return 1
+        fi
     fi
 }
 
@@ -102,10 +112,15 @@ install_neomutt() {
         elif command -v brew &> /dev/null; then
             brew install neomutt
         else
-            error "Could not detect package manager. Please install neomutt manually."
-            exit 1
+            warn "Could not detect package manager. Please install neomutt manually."
+            return 1
         fi
-        info "neomutt installed successfully"
+        if command -v neomutt &> /dev/null; then
+            info "neomutt installed successfully"
+        else
+            warn "neomutt installation failed — install manually and re-run"
+            return 1
+        fi
     fi
 }
 
@@ -234,10 +249,15 @@ install_zsh() {
         elif command -v brew &> /dev/null; then
             brew install zsh
         else
-            error "Could not detect package manager. Please install zsh manually."
-            exit 1
+            warn "Could not detect package manager. Please install zsh manually."
+            return 1
         fi
-        info "zsh installed successfully"
+        if command -v zsh &> /dev/null; then
+            info "zsh installed successfully"
+        else
+            warn "zsh installation failed — install manually and re-run"
+            return 1
+        fi
     fi
 }
 
@@ -366,20 +386,20 @@ main() {
     resolve_identity
 
     # Install tmux
-    install_tmux
+    install_tmux || warn "tmux installation failed — continuing without it"
     echo ""
 
     # Install neovim
-    install_neovim
+    install_neovim || warn "neovim installation failed — continuing without it"
     echo ""
 
     # Install neomutt
-    install_neomutt
+    install_neomutt || warn "neomutt installation failed — continuing without it"
     echo ""
 
     # Install sapling
-    install_sapling
-    configure_sapling "$USER_NAME" "$USER_EMAIL"
+    install_sapling || true
+    configure_sapling "$USER_NAME" "$USER_EMAIL" || true
     echo ""
 
     # Install b4 (mailing list patch tool)
@@ -391,9 +411,9 @@ main() {
     echo ""
 
     # Install zsh and oh-my-zsh
-    install_zsh
-    install_ohmyzsh
-    set_default_shell
+    install_zsh || warn "zsh installation failed — continuing without it"
+    install_ohmyzsh || warn "oh-my-zsh installation failed — continuing without it"
+    set_default_shell || warn "could not set default shell — run: chsh -s \$(which zsh)"
     echo ""
 
     # Create local override files if they don't exist (gitignored, machine-specific)
