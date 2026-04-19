@@ -297,34 +297,64 @@ backup_and_link() {
     info "Linked $dest -> $src"
 }
 
-prompt_user_identity() {
+resolve_identity() {
     local local_rc="$DOTFILES_DIR/.neomutt/local.rc"
-    local existing_name existing_email answer
+    local existing_name="" existing_email=""
 
     if [ -f "$local_rc" ]; then
         existing_name="$(grep 'real_name' "$local_rc" 2>/dev/null | sed 's/.*= *"\(.*\)"/\1/')"
         existing_email="$(grep 'imap_user' "$local_rc" 2>/dev/null | sed 's/.*= *"\(.*\)"/\1/')"
     fi
 
-    if [ -n "$existing_name" ] && [ -n "$existing_email" ]; then
-        info "Identity already set: $existing_name <$existing_email>"
-        read -r -p "Change it? [y/N] " answer
-        echo ""
-        if [[ "$answer" =~ ^[Yy]$ ]]; then
-            read -r -p "Enter your full name (e.g. Jane Smith): " USER_NAME
-            read -r -p "Enter your email address: " USER_EMAIL
-        else
-            USER_NAME="$existing_name"
-            USER_EMAIL="$existing_email"
-        fi
-    else
-        read -r -p "Enter your full name (e.g. Jane Smith): " USER_NAME
-        read -r -p "Enter your email address: " USER_EMAIL
+    # --name/--email flags take priority (CI-friendly, allows override)
+    if [ -n "$USER_NAME" ] && [ -n "$USER_EMAIL" ]; then
+        info "Using provided identity: $USER_NAME <$USER_EMAIL>"
+        return 0
     fi
+
+    # Reuse existing identity silently — no prompt needed
+    if [ -n "$existing_name" ] && [ -n "$existing_email" ]; then
+        info "Using existing identity: $existing_name <$existing_email>"
+        USER_NAME="$existing_name"
+        USER_EMAIL="$existing_email"
+        return 0
+    fi
+
+    # No identity anywhere — must prompt interactively
+    read -r -p "Enter your full name (e.g. Jane Smith): " USER_NAME
+    echo ""
+    read -r -p "Enter your email address: " USER_EMAIL
     echo ""
 }
 
 main() {
+    USER_NAME=""
+    USER_EMAIL=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --name)
+                USER_NAME="${2:-}"
+                shift 2
+                ;;
+            --email)
+                USER_EMAIL="${2:-}"
+                shift 2
+                ;;
+            *)
+                error "Unknown option: $1"
+                echo "Usage: $0 [--name 'Full Name'] [--email 'user@example.com']"
+                exit 1
+                ;;
+        esac
+    done
+
+    if { [ -n "$USER_NAME" ] && [ -z "$USER_EMAIL" ]; } || \
+       { [ -z "$USER_NAME" ] && [ -n "$USER_EMAIL" ]; }; then
+        error "--name and --email must be used together"
+        exit 1
+    fi
+
     echo "=========================================="
     echo "       Dotfiles Installation Script      "
     echo "=========================================="
@@ -333,7 +363,7 @@ main() {
     info "Home directory: $HOME"
     echo ""
 
-    prompt_user_identity
+    resolve_identity
 
     # Install tmux
     install_tmux
@@ -371,13 +401,20 @@ main() {
         touch "$DOTFILES_DIR/.zshrc.local"
         info "Created .zshrc.local (add machine-specific shell config here)"
     fi
-    {
-        echo "set imap_user = \"$USER_EMAIL\""
-        echo "set from = \"$USER_EMAIL\""
-        echo "set real_name = \"$USER_NAME\""
-        echo "set smtp_url = \"smtp://${USER_EMAIL}@smtp.fastmail.com:587/\""
-    } > "$DOTFILES_DIR/.neomutt/local.rc"
-    info "Written .neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
+    local local_rc="$DOTFILES_DIR/.neomutt/local.rc"
+    if [ -f "$local_rc" ] && \
+       grep -qF "set real_name = \"${USER_NAME}\"" "$local_rc" && \
+       grep -qF "set imap_user = \"${USER_EMAIL}\"" "$local_rc"; then
+        info "Identity in .neomutt/local.rc is already up to date"
+    else
+        {
+            echo "set imap_user = \"$USER_EMAIL\""
+            echo "set from = \"$USER_EMAIL\""
+            echo "set real_name = \"$USER_NAME\""
+            echo "set smtp_url = \"smtp://${USER_EMAIL}@smtp.fastmail.com:587/\""
+        } > "$local_rc"
+        info "Written .neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
+    fi
 
     # Install regular files
     for file in "${FILES[@]}"; do

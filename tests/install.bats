@@ -143,6 +143,50 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
+# resolve_identity
+# ---------------------------------------------------------------------------
+
+@test "resolve_identity uses --name/--email flag values without prompting" {
+  USER_NAME="CI User"
+  USER_EMAIL="ci@example.com"
+  DOTFILES_DIR="$TEST_HOME"
+
+  run resolve_identity
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Using provided identity"* ]]
+  [[ "$output" == *"CI User"* ]]
+}
+
+@test "resolve_identity reads existing local.rc silently when no flags set" {
+  DOTFILES_DIR="$TEST_HOME"
+  mkdir -p "$TEST_HOME/.neomutt"
+  printf 'set imap_user = "existing@example.com"\nset real_name = "Existing User"\n' \
+    > "$TEST_HOME/.neomutt/local.rc"
+  USER_NAME=""
+  USER_EMAIL=""
+
+  resolve_identity
+
+  [ "$USER_NAME" = "Existing User" ]
+  [ "$USER_EMAIL" = "existing@example.com" ]
+}
+
+@test "resolve_identity flags override an existing local.rc identity" {
+  DOTFILES_DIR="$TEST_HOME"
+  mkdir -p "$TEST_HOME/.neomutt"
+  printf 'set imap_user = "old@example.com"\nset real_name = "Old User"\n' \
+    > "$TEST_HOME/.neomutt/local.rc"
+  USER_NAME="New User"
+  USER_EMAIL="new@example.com"
+
+  resolve_identity
+
+  [ "$USER_NAME" = "New User" ]
+  [ "$USER_EMAIL" = "new@example.com" ]
+}
+
+# ---------------------------------------------------------------------------
 # configure_sapling
 # ---------------------------------------------------------------------------
 
