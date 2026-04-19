@@ -1,0 +1,14 @@
+services:
+  ubuntu:
+    build:
+      context: .
+      dockerfile: docker/ubuntu.Dockerfile
+    volumes:
+      - .:/dotfiles
+
+  fedora:
+    build:
+      context: .
+      dockerfile: docker/fedora.Dockerfile
+    volumes:
+      - .:/dotfiles
