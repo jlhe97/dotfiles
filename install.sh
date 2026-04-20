@@ -215,7 +215,7 @@ install_vim_plugins() {
             https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
     fi
     info "Installing vim plugins..."
-    vim -es -u "$HOME/.vimrc" +PlugInstall +qall
+    vim -es -u "$HOME/.vimrc" +"PlugInstall --sync" +qall
     info "vim plugins installed"
 }
 
@@ -231,7 +231,7 @@ install_nvim_plugins() {
             https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
     fi
     info "Installing nvim plugins..."
-    nvim --headless +PlugInstall +qall 2>/dev/null
+    nvim --headless +"PlugInstall --sync" +qall 2>/dev/null
     info "nvim plugins installed"
 }
 
