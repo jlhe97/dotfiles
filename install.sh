@@ -345,8 +345,6 @@ main() {
     configure_sapling "$USER_NAME" "$USER_EMAIL" || true
     install_ohmyzsh || warn "oh-my-zsh installation failed — continuing without it"
     set_default_shell || warn "could not set default shell — run: chsh -s \$(which zsh)"
-    install_vim_plugins  || warn "vim plugin install failed — run ':PlugInstall' in vim manually"
-    install_nvim_plugins || warn "nvim plugin install failed — run ':PlugInstall' in nvim manually"
     echo ""
 
     # Create local override files if they don't exist (gitignored, machine-specific)
@@ -395,6 +393,10 @@ main() {
             warn "Source directory not found: $src"
         fi
     done
+
+    # Plugin install runs after symlinks so ~/.config/nvim/init.lua exists
+    install_vim_plugins  || warn "vim plugin install failed — run ':PlugInstall' in vim manually"
+    install_nvim_plugins || warn "nvim plugin install failed — run ':PlugInstall' in nvim manually"
 
     echo ""
     echo "=========================================="
