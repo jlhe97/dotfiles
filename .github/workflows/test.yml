@@ -66,5 +66,6 @@ jobs:
           test -L "$HOME/.vimrc"
           test -L "$HOME/.zshrc"
           test -L "$HOME/.config/nvim"
+          test -L "$HOME/.slconfig"
       - name: Verify nvim plugins installed
         run: test -d "$HOME/.local/share/nvim/plugged"

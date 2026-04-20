@@ -21,7 +21,8 @@ RUN command -v tmux && command -v nvim && command -v neomutt && command -v zsh &
 RUN test -L "$HOME/.tmux.conf" \
     && test -L "$HOME/.vimrc" \
     && test -L "$HOME/.zshrc" \
-    && test -L "$HOME/.config/nvim"
+    && test -L "$HOME/.config/nvim" \
+    && test -L "$HOME/.slconfig"
 
 # Verify nvim plugins installed
 RUN test -d "$HOME/.local/share/nvim/plugged"
