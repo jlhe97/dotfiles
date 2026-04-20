@@ -203,6 +203,38 @@ install_via_packagefile() {
     info "Package installation complete"
 }
 
+install_vim_plugins() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
+    if ! command -v vim &>/dev/null; then
+        return 0
+    fi
+    local plug_path="$HOME/.vim/autoload/plug.vim"
+    if [[ ! -f "$plug_path" ]]; then
+        info "Bootstrapping vim-plug..."
+        curl -fLo "$plug_path" --create-dirs \
+            https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+    fi
+    info "Installing vim plugins..."
+    vim -es -u "$HOME/.vimrc" +PlugInstall +qall
+    info "vim plugins installed"
+}
+
+install_nvim_plugins() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
+    if ! command -v nvim &>/dev/null; then
+        return 0
+    fi
+    local plug_path="$HOME/.local/share/nvim/site/autoload/plug.vim"
+    if [[ ! -f "$plug_path" ]]; then
+        info "Bootstrapping vim-plug for nvim..."
+        curl -fLo "$plug_path" --create-dirs \
+            https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+    fi
+    info "Installing nvim plugins..."
+    nvim --headless +PlugInstall +qall 2>/dev/null
+    info "nvim plugins installed"
+}
+
 backup_and_link() {
     local src="$1"
     local dest="$2"
@@ -313,6 +345,8 @@ main() {
     configure_sapling "$USER_NAME" "$USER_EMAIL" || true
     install_ohmyzsh || warn "oh-my-zsh installation failed — continuing without it"
     set_default_shell || warn "could not set default shell — run: chsh -s \$(which zsh)"
+    install_vim_plugins  || warn "vim plugin install failed — run ':PlugInstall' in vim manually"
+    install_nvim_plugins || warn "nvim plugin install failed — run ':PlugInstall' in nvim manually"
     echo ""
 
     # Create local override files if they don't exist (gitignored, machine-specific)
@@ -384,8 +418,6 @@ main() {
     echo "Note: You may need to:"
     echo "  - Restart your terminal for zsh to take effect"
     echo "  - Run 'tmux source ~/.tmux.conf' to reload tmux config"
-    echo "  - Run ':PlugInstall' in vim to install plugins"
-    echo "  - Run ':PlugInstall' in neovim to install plugins"
     echo ""
     echo "=========================================="
     echo "       Fastmail Neomutt Setup            "

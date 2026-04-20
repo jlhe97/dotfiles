@@ -41,6 +41,8 @@ setup() {
   configure_sapling()       { :; }
   install_ohmyzsh()         { :; }
   set_default_shell()       { :; }
+  install_vim_plugins()     { :; }
+  install_nvim_plugins()    { :; }
 
   main --name "Test User" --email "test@example.com" >/dev/null
 
@@ -141,6 +143,8 @@ _uninstall() {
   configure_sapling()       { :; }
   install_ohmyzsh()         { :; }
   set_default_shell()       { :; }
+  install_vim_plugins()     { :; }
+  install_nvim_plugins()    { :; }
 
   main --name "Test User" --email "test@example.com" >/dev/null
 

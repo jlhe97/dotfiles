@@ -232,6 +232,79 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# install_vim_plugins / install_nvim_plugins
+# ---------------------------------------------------------------------------
+
+@test "install_vim_plugins skips gracefully when vim is not on PATH" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_vim_plugins
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "install_nvim_plugins skips gracefully when nvim is not on PATH" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_nvim_plugins
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "install_vim_plugins bootstraps vim-plug when it is missing" {
+  local plug_path="$TEST_HOME/.vim/autoload/plug.vim"
+  cat > "$MOCK_BIN/curl" << 'EOF'
+#!/bin/bash
+# find -Lo <dest> in args and create it
+for i in "$@"; do
+  prev="$prev_arg"
+  prev_arg="$i"
+done
+mkdir -p "$(dirname "$prev_arg")" && touch "$prev_arg"
+EOF
+  cat > "$MOCK_BIN/vim" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/curl" "$MOCK_BIN/vim"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run install_vim_plugins
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Bootstrapping"* ]]
+}
+
+@test "install_nvim_plugins bootstraps vim-plug when it is missing" {
+  cat > "$MOCK_BIN/curl" << 'EOF'
+#!/bin/bash
+for i in "$@"; do prev_arg="$i"; done
+mkdir -p "$(dirname "$prev_arg")" && touch "$prev_arg"
+EOF
+  cat > "$MOCK_BIN/nvim" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/curl" "$MOCK_BIN/nvim"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run install_nvim_plugins
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Bootstrapping"* ]]
+}
+
+# ---------------------------------------------------------------------------
 # install_ohmyzsh
 # ---------------------------------------------------------------------------
 
