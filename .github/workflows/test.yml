@@ -50,3 +50,21 @@ jobs:
         run: brew install bats-core
       - name: Test
         run: bats tests/
+
+  e2e-macos:
+    name: E2E macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run install.sh
+        run: ./install.sh --name "Test User" --email "test@example.com"
+      - name: Verify packages on PATH
+        run: command -v tmux && command -v nvim && command -v neomutt && command -v zsh
+      - name: Verify dotfile symlinks
+        run: |
+          test -L "$HOME/.tmux.conf"
+          test -L "$HOME/.vimrc"
+          test -L "$HOME/.zshrc"
+          test -L "$HOME/.config/nvim"
+      - name: Verify nvim plugins installed
+        run: test -d "$HOME/.local/share/nvim/plugged"
