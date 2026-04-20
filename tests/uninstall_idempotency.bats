@@ -36,14 +36,9 @@ setup() {
 
   install_via_brewfile()    { :; }
   install_via_packagefile() { :; }
-  install_tmux()            { :; }
-  install_neovim()          { :; }
-  install_neomutt()         { :; }
   install_ghostty()         { :; }
   install_sapling()         { :; }
   configure_sapling()       { :; }
-  install_b4()              { :; }
-  install_zsh()             { :; }
   install_ohmyzsh()         { :; }
   set_default_shell()       { :; }
 
@@ -58,13 +53,10 @@ setup() {
 
   DOTFILES_DIR="$FAKE_DOTFILES"
 
-  uninstall_tmux()        { :; }
-  uninstall_neovim()      { :; }
-  uninstall_neomutt()     { :; }
-  uninstall_ghostty()     { :; }
-  uninstall_ohmyzsh()     { :; }
-  restore_default_shell() { :; }
-  uninstall_zsh()         { :; }
+  uninstall_via_packagefile() { :; }
+  uninstall_ghostty()         { :; }
+  uninstall_ohmyzsh()         { :; }
+  restore_default_shell()     { :; }
 }
 
 teardown() {
@@ -144,10 +136,11 @@ _uninstall() {
   DOTFILES_DIR="$FAKE_DOTFILES"
   install_via_brewfile()    { :; }
   install_via_packagefile() { :; }
-  install_tmux()      { :; }; install_neovim()  { :; }; install_neomutt()   { :; }
-  install_ghostty()   { :; }; install_sapling() { :; }; configure_sapling() { :; }
-  install_b4()        { :; }; install_zsh()     { :; }; install_ohmyzsh()   { :; }
-  set_default_shell() { :; }
+  install_ghostty()         { :; }
+  install_sapling()         { :; }
+  configure_sapling()       { :; }
+  install_ohmyzsh()         { :; }
+  set_default_shell()       { :; }
 
   main --name "Test User" --email "test@example.com" >/dev/null
 

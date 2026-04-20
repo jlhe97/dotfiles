@@ -35,70 +35,33 @@ TARGETS=(
     "$HOME/.neomuttrc"
 )
 
-uninstall_tmux() {
+uninstall_via_packagefile() {
     trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
-    if command -v tmux &> /dev/null; then
-        info "Uninstalling tmux..."
-        if command -v apt &> /dev/null; then
-            sudo apt remove -y tmux
-        elif command -v dnf &> /dev/null; then
-            sudo dnf remove -y tmux
-        elif command -v pacman &> /dev/null; then
-            sudo pacman -Rs --noconfirm tmux
-        elif command -v brew &> /dev/null; then
-            brew uninstall tmux
-        else
-            warn "Could not detect package manager. Please uninstall tmux manually."
-            return 1
-        fi
-        info "tmux uninstalled"
+    local pkg_file remove_cmd
+    if command -v apt &>/dev/null; then
+        pkg_file="$DOTFILES_DIR/packages/apt.txt"
+        remove_cmd="sudo apt remove -y"
+    elif command -v dnf &>/dev/null; then
+        pkg_file="$DOTFILES_DIR/packages/dnf.txt"
+        remove_cmd="sudo dnf remove -y"
+    elif command -v pacman &>/dev/null; then
+        pkg_file="$DOTFILES_DIR/packages/pacman.txt"
+        remove_cmd="sudo pacman -Rs --noconfirm"
     else
-        info "tmux is not installed"
+        warn "No supported package manager found (apt/dnf/pacman)"
+        return 1
     fi
-}
-
-uninstall_neovim() {
-    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
-    if command -v nvim &> /dev/null; then
-        info "Uninstalling neovim..."
-        if command -v apt &> /dev/null; then
-            sudo apt remove -y neovim
-        elif command -v dnf &> /dev/null; then
-            sudo dnf remove -y neovim
-        elif command -v pacman &> /dev/null; then
-            sudo pacman -Rs --noconfirm neovim
-        elif command -v brew &> /dev/null; then
-            brew uninstall neovim
-        else
-            warn "Could not detect package manager. Please uninstall neovim manually."
-            return 1
-        fi
-        info "neovim uninstalled"
-    else
-        info "neovim is not installed"
+    if [[ ! -f "$pkg_file" ]]; then
+        warn "Package file not found: $pkg_file"
+        return 1
     fi
-}
-
-uninstall_neomutt() {
-    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
-    if command -v neomutt &> /dev/null; then
-        info "Uninstalling neomutt..."
-        if command -v apt &> /dev/null; then
-            sudo apt remove -y neomutt
-        elif command -v dnf &> /dev/null; then
-            sudo dnf remove -y neomutt
-        elif command -v pacman &> /dev/null; then
-            sudo pacman -Rs --noconfirm neomutt
-        elif command -v brew &> /dev/null; then
-            brew uninstall neomutt
-        else
-            warn "Could not detect package manager. Please uninstall neomutt manually."
-            return 1
-        fi
-        info "neomutt uninstalled"
-    else
-        info "neomutt is not installed"
-    fi
+    info "Removing packages from $(basename "$pkg_file")..."
+    local pkg
+    while IFS= read -r pkg || [[ -n "$pkg" ]]; do
+        [[ -z "$pkg" || "$pkg" == \#* ]] && continue
+        $remove_cmd "$pkg" || warn "failed to remove $pkg — skipping"
+    done < "$pkg_file"
+    info "Package removal complete"
 }
 
 uninstall_ghostty() {
@@ -148,28 +111,6 @@ restore_default_shell() {
         info "Default shell changed to bash (restart your terminal to take effect)"
     else
         info "bash is already the default shell"
-    fi
-}
-
-uninstall_zsh() {
-    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
-    if command -v zsh &> /dev/null; then
-        info "Uninstalling zsh..."
-        if command -v apt &> /dev/null; then
-            sudo apt remove -y zsh
-        elif command -v dnf &> /dev/null; then
-            sudo dnf remove -y zsh
-        elif command -v pacman &> /dev/null; then
-            sudo pacman -Rs --noconfirm zsh
-        elif command -v brew &> /dev/null; then
-            brew uninstall zsh
-        else
-            warn "Could not detect package manager. Please uninstall zsh manually."
-            return 1
-        fi
-        info "zsh uninstalled"
-    else
-        info "zsh is not installed"
     fi
 }
 
@@ -225,19 +166,13 @@ main() {
 
     if [ "$skip_packages" = false ] && [[ $REPLY =~ ^[Yy]$ ]]; then
         echo ""
-        uninstall_tmux    || warn "tmux uninstallation failed — remove manually"
-        echo ""
-        uninstall_neovim  || warn "neovim uninstallation failed — remove manually"
-        echo ""
-        uninstall_neomutt || warn "neomutt uninstallation failed — remove manually"
+        uninstall_via_packagefile || warn "package removal incomplete — check output above"
         echo ""
         uninstall_ghostty || warn "ghostty uninstallation failed — remove manually"
         echo ""
         uninstall_ohmyzsh || warn "oh-my-zsh removal failed — remove manually"
         echo ""
         restore_default_shell || warn "could not restore default shell — run: chsh -s \$(which bash)"
-        echo ""
-        uninstall_zsh     || warn "zsh uninstallation failed — remove manually"
     else
         info "Skipping package uninstallation"
     fi

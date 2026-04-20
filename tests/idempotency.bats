@@ -42,14 +42,9 @@ setup() {
   # Stub every operation that touches the real system.
   install_via_brewfile()    { :; }
   install_via_packagefile() { :; }
-  install_tmux()            { :; }
-  install_neovim()          { :; }
-  install_neomutt()         { :; }
   install_ghostty()         { :; }
   install_sapling()         { :; }
   configure_sapling()       { :; }
-  install_b4()              { :; }
-  install_zsh()             { :; }
   install_ohmyzsh()         { :; }
   set_default_shell()       { :; }
 }
@@ -133,8 +128,7 @@ _install() {
 }
 
 @test "install continues and creates symlinks even when a tool install fails" {
-  # Stub install_tmux to simulate a failure (e.g. ghostty on a devserver)
-  install_tmux() { return 1; }
+  install_via_packagefile() { return 1; }
 
   _install
 

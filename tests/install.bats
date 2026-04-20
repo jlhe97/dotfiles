@@ -248,50 +248,6 @@ EOF
 # install_* failure handling
 # ---------------------------------------------------------------------------
 
-@test "install_tmux returns 1 (not exit) when no package manager is found" {
-  local orig_path="$PATH"
-  export PATH="$MOCK_BIN"  # empty bin: no apt/dnf/pacman/brew/tmux
-
-  run install_tmux
-
-  export PATH="$orig_path"
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"[WARN]"* ]]
-}
-
-@test "install_neovim returns 1 (not exit) when no package manager is found" {
-  local orig_path="$PATH"
-  export PATH="$MOCK_BIN"
-
-  run install_neovim
-
-  export PATH="$orig_path"
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"[WARN]"* ]]
-}
-
-@test "install_neomutt returns 1 (not exit) when no package manager is found" {
-  local orig_path="$PATH"
-  export PATH="$MOCK_BIN"
-
-  run install_neomutt
-
-  export PATH="$orig_path"
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"[WARN]"* ]]
-}
-
-@test "install_zsh returns 1 (not exit) when no package manager is found" {
-  local orig_path="$PATH"
-  export PATH="$MOCK_BIN"
-
-  run install_zsh
-
-  export PATH="$orig_path"
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"[WARN]"* ]]
-}
-
 # ---------------------------------------------------------------------------
 # install_via_packagefile
 # ---------------------------------------------------------------------------
@@ -401,20 +357,25 @@ EOF
 # ERR trap — mid-function failure detail
 # ---------------------------------------------------------------------------
 
-@test "install_tmux emits command-failed detail when the package manager command fails" {
-  # apt smart stub: "update" succeeds so && continues; "install" fails → ERR trap fires.
-  # set +e so non-zero return doesn't exit the test; no || wrapper so trap isn't suppressed.
-  printf '#!/bin/bash\nexec "$@"\n'                                  > "$MOCK_BIN/sudo"
-  printf '#!/bin/bash\n[[ "$1" == "install" ]] && exit 1\nexit 0\n' > "$MOCK_BIN/apt"
+@test "install_via_packagefile emits command-failed detail when the package manager command fails" {
+  local fake_dotfiles="$TEST_HOME/fake_dotfiles"
+  mkdir -p "$fake_dotfiles/packages"
+  printf 'tmux\n' > "$fake_dotfiles/packages/apt.txt"
+
+  printf '#!/bin/bash\nexec "$@"\n'        > "$MOCK_BIN/sudo"
+  printf '#!/bin/bash\nexit 1\n'           > "$MOCK_BIN/apt"
   chmod +x "$MOCK_BIN/sudo" "$MOCK_BIN/apt"
+
+  DOTFILES_DIR="$fake_dotfiles"
   local orig_path="$PATH"
   export PATH="$MOCK_BIN"
 
   local captured
   set +e
-  captured="$(install_tmux 2>&1)"
+  captured="$(install_via_packagefile 2>&1)"
   set -e
 
   export PATH="$orig_path"
+  DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   [[ "$captured" == *"command failed"* ]]
 }

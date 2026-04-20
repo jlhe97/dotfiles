@@ -150,74 +150,71 @@ remove_dotfile_symlinks() {
 }
 
 # ---------------------------------------------------------------------------
-# uninstall_* failure handling
+# uninstall_via_packagefile
 # ---------------------------------------------------------------------------
 
-@test "uninstall_tmux returns 1 with a warning when no package manager is found" {
-  # Create the fake bin and stub tmux BEFORE overriding PATH
+@test "uninstall_via_packagefile returns 1 when no package manager is found" {
   mkdir -p "$TEST_HOME/empty_bin"
-  printf '#!/bin/bash\nexit 0\n' > "$TEST_HOME/empty_bin/tmux"
-  chmod +x "$TEST_HOME/empty_bin/tmux"
   local orig_path="$PATH"
   export PATH="$TEST_HOME/empty_bin"
 
-  run uninstall_tmux
+  run uninstall_via_packagefile
 
   export PATH="$orig_path"
   [ "$status" -eq 1 ]
   [[ "$output" == *"[WARN]"* ]]
-  [[ "$output" != *"tmux uninstalled"* ]]
 }
 
-@test "uninstall_neovim returns 1 with a warning when no package manager is found" {
-  mkdir -p "$TEST_HOME/empty_bin"
-  printf '#!/bin/bash\nexit 0\n' > "$TEST_HOME/empty_bin/nvim"
-  chmod +x "$TEST_HOME/empty_bin/nvim"
-  local orig_path="$PATH"
-  export PATH="$TEST_HOME/empty_bin"
+@test "uninstall_via_packagefile removes each package from apt.txt via apt" {
+  local log="$TEST_HOME/apt.log"
+  local empty_bin="$TEST_HOME/empty_bin"
+  mkdir -p "$empty_bin"
+  printf '#!/bin/bash\nexec "$@"\n'          > "$empty_bin/sudo"
+  printf '#!/bin/bash\necho "apt $*" >> "%s"\n' "$log" > "$empty_bin/apt"
+  chmod +x "$empty_bin/sudo" "$empty_bin/apt"
 
-  run uninstall_neovim
+  local fake_dotfiles="$TEST_HOME/fake_dotfiles"
+  mkdir -p "$fake_dotfiles/packages"
+  printf 'tmux\nzsh\n' > "$fake_dotfiles/packages/apt.txt"
+  DOTFILES_DIR="$fake_dotfiles"
+
+  local orig_path="$PATH"
+  export PATH="$empty_bin"
+
+  run uninstall_via_packagefile
 
   export PATH="$orig_path"
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"[WARN]"* ]]
-  [[ "$output" != *"neovim uninstalled"* ]]
-}
-
-@test "uninstall_zsh returns 1 with a warning when no package manager is found" {
-  mkdir -p "$TEST_HOME/empty_bin"
-  printf '#!/bin/bash\nexit 0\n' > "$TEST_HOME/empty_bin/zsh"
-  chmod +x "$TEST_HOME/empty_bin/zsh"
-  local orig_path="$PATH"
-  export PATH="$TEST_HOME/empty_bin"
-
-  run uninstall_zsh
-
-  export PATH="$orig_path"
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"[WARN]"* ]]
-  [[ "$output" != *"zsh uninstalled"* ]]
+  DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$log")" == *"remove -y tmux"* ]]
+  [[ "$(cat "$log")" == *"remove -y zsh"* ]]
 }
 
 # ---------------------------------------------------------------------------
 # ERR trap — mid-function failure detail
 # ---------------------------------------------------------------------------
 
-@test "uninstall_tmux emits command-failed detail when the package manager command fails" {
-  # set +e so non-zero return doesn't exit the test; no || wrapper so trap isn't suppressed.
-  mkdir -p "$TEST_HOME/empty_bin"
-  printf '#!/bin/bash\nexec "$@"\n' > "$TEST_HOME/empty_bin/sudo"
-  printf '#!/bin/bash\nexit 1\n'    > "$TEST_HOME/empty_bin/apt"
-  printf '#!/bin/bash\nexit 0\n'    > "$TEST_HOME/empty_bin/tmux"
-  chmod +x "$TEST_HOME/empty_bin/sudo" "$TEST_HOME/empty_bin/apt" "$TEST_HOME/empty_bin/tmux"
+@test "uninstall_via_packagefile emits command-failed detail when the package manager command fails" {
+  local empty_bin="$TEST_HOME/empty_bin"
+  mkdir -p "$empty_bin"
+  printf '#!/bin/bash\nexec "$@"\n' > "$empty_bin/sudo"
+  printf '#!/bin/bash\nexit 1\n'    > "$empty_bin/apt"
+  chmod +x "$empty_bin/sudo" "$empty_bin/apt"
+
+  local fake_dotfiles="$TEST_HOME/fake_dotfiles"
+  mkdir -p "$fake_dotfiles/packages"
+  printf 'tmux\n' > "$fake_dotfiles/packages/apt.txt"
+  DOTFILES_DIR="$fake_dotfiles"
+
   local orig_path="$PATH"
-  export PATH="$TEST_HOME/empty_bin"
+  export PATH="$empty_bin"
 
   local captured
   set +e
-  captured="$(uninstall_tmux 2>&1)"
+  captured="$(uninstall_via_packagefile 2>&1)"
   set -e
 
   export PATH="$orig_path"
+  DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   [[ "$captured" == *"command failed"* ]]
 }
