@@ -38,6 +38,7 @@ FILES=(
     ".neomutt/local.rc"
     ".zshrc.local"
     ".claude/settings.local.json"
+    ".slconfig"
 )
 
 # Directories to install (relative to dotfiles directory)
