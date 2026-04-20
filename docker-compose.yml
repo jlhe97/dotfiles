@@ -22,3 +22,8 @@ services:
     build:
       context: .
       dockerfile: docker/fedora-e2e.Dockerfile
+
+  arch-e2e:
+    build:
+      context: .
+      dockerfile: docker/arch-e2e.Dockerfile
