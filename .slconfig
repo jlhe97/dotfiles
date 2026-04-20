@@ -1,0 +1,11 @@
+[ui]
+editor = nvim
+pager = less -FRX
+
+[diff]
+git = true
+
+[alias]
+st  = status
+co  = checkout
+lg  = log --graph --template "{node|short} {desc|firstline}\n"
