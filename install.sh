@@ -46,96 +46,13 @@ DIRS=(
     ".claude/skills"
 )
 
-install_tmux() {
-    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
-    if command -v tmux &> /dev/null; then
-        info "tmux is already installed"
-    else
-        info "Installing tmux..."
-        if command -v apt &> /dev/null; then
-            sudo apt update && sudo apt install -y tmux
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y tmux
-        elif command -v pacman &> /dev/null; then
-            sudo pacman -S --noconfirm tmux
-        elif command -v brew &> /dev/null; then
-            brew install tmux
-        else
-            warn "Could not detect package manager. Please install tmux manually."
-            return 1
-        fi
-        if command -v tmux &> /dev/null; then
-            info "tmux installed successfully"
-        else
-            warn "tmux installation failed — install manually and re-run"
-            return 1
-        fi
-    fi
-}
-
-install_neovim() {
-    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
-    if command -v nvim &> /dev/null; then
-        info "neovim is already installed"
-    else
-        info "Installing neovim..."
-        if command -v apt &> /dev/null; then
-            sudo apt update && sudo apt install -y neovim
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y neovim
-        elif command -v pacman &> /dev/null; then
-            sudo pacman -S --noconfirm neovim
-        elif command -v brew &> /dev/null; then
-            brew install neovim
-        else
-            warn "Could not detect package manager. Please install neovim manually."
-            return 1
-        fi
-        if command -v nvim &> /dev/null; then
-            info "neovim installed successfully"
-        else
-            warn "neovim installation failed — install manually and re-run"
-            return 1
-        fi
-    fi
-}
-
-install_neomutt() {
-    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
-    if command -v neomutt &> /dev/null; then
-        info "neomutt is already installed"
-    else
-        info "Installing neomutt..."
-        if command -v apt &> /dev/null; then
-            sudo apt update && sudo apt install -y neomutt
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y neomutt
-        elif command -v pacman &> /dev/null; then
-            sudo pacman -S --noconfirm neomutt
-        elif command -v brew &> /dev/null; then
-            brew install neomutt
-        else
-            warn "Could not detect package manager. Please install neomutt manually."
-            return 1
-        fi
-        if command -v neomutt &> /dev/null; then
-            info "neomutt installed successfully"
-        else
-            warn "neomutt installation failed — install manually and re-run"
-            return 1
-        fi
-    fi
-}
-
 install_ghostty() {
     trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     if command -v ghostty &> /dev/null; then
         info "ghostty is already installed"
     else
         info "Installing ghostty..."
-        if command -v brew &> /dev/null; then
-            brew install ghostty
-        elif command -v apt &> /dev/null; then
+        if command -v apt &> /dev/null; then
             # Add Ghostty apt repository for Debian/Ubuntu
             sudo apt update && sudo apt install -y curl gpg
             curl -fsSL https://pkg.ghostty.org/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/ghostty-keyring.gpg
@@ -164,9 +81,7 @@ install_sapling() {
         info "sapling is already installed"
     else
         info "Installing sapling..."
-        if command -v brew &> /dev/null; then
-            brew install sapling
-        elif command -v apt &> /dev/null || command -v dnf &> /dev/null; then
+        if command -v apt &> /dev/null || command -v dnf &> /dev/null; then
             local tmp_tar tarball_url
             tmp_tar="$(mktemp /tmp/sapling_XXXXXX.tar.xz)"
             tarball_url="$(curl -fsSL https://api.github.com/repos/facebook/sapling/releases/latest | grep -o 'https://[^"]*linux-x64\.tar\.xz' | head -1)"
@@ -209,62 +124,6 @@ configure_sapling() {
     else
         sl config --user ui.username "$1 <$2>"
         info "sapling identity set to: $1 <$2>"
-    fi
-}
-
-install_b4() {
-    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
-    if command -v b4 &> /dev/null; then
-        info "b4 is already installed"
-    else
-        info "Installing b4..."
-        if command -v pipx &> /dev/null; then
-            pipx install b4
-        elif command -v brew &> /dev/null; then
-            brew install b4
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y b4
-        elif command -v apt &> /dev/null; then
-            sudo apt update && sudo apt install -y b4
-        elif command -v pacman &> /dev/null; then
-            sudo pacman -S --noconfirm b4
-        else
-            warn "Could not install b4. Install manually: pip install b4"
-            return 0
-        fi
-
-        if command -v b4 &> /dev/null; then
-            info "b4 installed successfully"
-        else
-            warn "b4 installation failed — install manually: pip install b4"
-        fi
-    fi
-}
-
-install_zsh() {
-    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
-    if command -v zsh &> /dev/null; then
-        info "zsh is already installed"
-    else
-        info "Installing zsh..."
-        if command -v apt &> /dev/null; then
-            sudo apt update && sudo apt install -y zsh
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y zsh
-        elif command -v pacman &> /dev/null; then
-            sudo pacman -S --noconfirm zsh
-        elif command -v brew &> /dev/null; then
-            brew install zsh
-        else
-            warn "Could not detect package manager. Please install zsh manually."
-            return 1
-        fi
-        if command -v zsh &> /dev/null; then
-            info "zsh installed successfully"
-        else
-            warn "zsh installation failed — install manually and re-run"
-            return 1
-        fi
     fi
 }
 
