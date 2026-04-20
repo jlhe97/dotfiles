@@ -186,6 +186,60 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
+# configure_git
+# ---------------------------------------------------------------------------
+
+@test "configure_git returns 0 silently when git is not on PATH" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run configure_git "Test User" "test@example.com"
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "configure_git sets identity when not yet configured" {
+  cat > "$MOCK_BIN/git" << 'EOF'
+#!/bin/bash
+if [[ "$1 $2" == "config --global" && "$3" == "user.name" && $# -eq 3 ]]; then
+  exit 1
+fi
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/git"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run configure_git "Test User" "test@example.com"
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"git identity set to"* ]]
+}
+
+@test "configure_git skips when identity already matches" {
+  cat > "$MOCK_BIN/git" << 'EOF'
+#!/bin/bash
+case "$3" in
+  user.name)  echo "Test User" ;;
+  user.email) echo "test@example.com" ;;
+esac
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/git"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run configure_git "Test User" "test@example.com"
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"already set"* ]]
+}
+
+# ---------------------------------------------------------------------------
 # configure_sapling
 # ---------------------------------------------------------------------------
 

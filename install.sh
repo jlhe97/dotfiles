@@ -112,6 +112,23 @@ install_sapling() {
     fi
 }
 
+configure_git() {
+    if ! command -v git &>/dev/null; then
+        return 0
+    fi
+
+    local current_name current_email
+    current_name="$(git config --global user.name 2>/dev/null || true)"
+    current_email="$(git config --global user.email 2>/dev/null || true)"
+    if [[ "$current_name" == "$1" && "$current_email" == "$2" ]]; then
+        info "git identity already set: $1 <$2>"
+        return 0
+    fi
+    git config --global user.name "$1"
+    git config --global user.email "$2"
+    info "git identity set to: $1 <$2>"
+}
+
 configure_sapling() {
     if ! command -v sl &> /dev/null; then
         return 0
@@ -342,6 +359,7 @@ main() {
         echo ""
     fi
 
+    configure_git "$USER_NAME" "$USER_EMAIL" || true
     configure_sapling "$USER_NAME" "$USER_EMAIL" || true
     install_ohmyzsh || warn "oh-my-zsh installation failed — continuing without it"
     set_default_shell || warn "could not set default shell — run: chsh -s \$(which zsh)"

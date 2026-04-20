@@ -44,6 +44,7 @@ setup() {
   install_via_packagefile() { :; }
   install_ghostty()         { :; }
   install_sapling()         { :; }
+  configure_git()           { :; }
   configure_sapling()       { :; }
   install_ohmyzsh()         { :; }
   set_default_shell()       { :; }
