@@ -258,15 +258,16 @@ EOF
 }
 
 @test "install_vim_plugins bootstraps vim-plug when it is missing" {
-  local plug_path="$TEST_HOME/.vim/autoload/plug.vim"
+  # curl mock: parse -fLo <dest> and create the destination file
   cat > "$MOCK_BIN/curl" << 'EOF'
 #!/bin/bash
-# find -Lo <dest> in args and create it
-for i in "$@"; do
-  prev="$prev_arg"
-  prev_arg="$i"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -fLo|-Lo|-o) shift; dest="$1" ;;
+  esac
+  shift
 done
-mkdir -p "$(dirname "$prev_arg")" && touch "$prev_arg"
+mkdir -p "$(dirname "$dest")" && touch "$dest"
 EOF
   cat > "$MOCK_BIN/vim" << 'EOF'
 #!/bin/bash
@@ -286,8 +287,13 @@ EOF
 @test "install_nvim_plugins bootstraps vim-plug when it is missing" {
   cat > "$MOCK_BIN/curl" << 'EOF'
 #!/bin/bash
-for i in "$@"; do prev_arg="$i"; done
-mkdir -p "$(dirname "$prev_arg")" && touch "$prev_arg"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -fLo|-Lo|-o) shift; dest="$1" ;;
+  esac
+  shift
+done
+mkdir -p "$(dirname "$dest")" && touch "$dest"
 EOF
   cat > "$MOCK_BIN/nvim" << 'EOF'
 #!/bin/bash
