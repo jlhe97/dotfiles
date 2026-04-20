@@ -232,6 +232,85 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# install_vim_plugins / install_nvim_plugins
+# ---------------------------------------------------------------------------
+
+@test "install_vim_plugins skips gracefully when vim is not on PATH" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_vim_plugins
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "install_nvim_plugins skips gracefully when nvim is not on PATH" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_nvim_plugins
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "install_vim_plugins bootstraps vim-plug when it is missing" {
+  # curl mock: parse -fLo <dest> and create the destination file
+  cat > "$MOCK_BIN/curl" << 'EOF'
+#!/bin/bash
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -fLo|-Lo|-o) shift; dest="$1" ;;
+  esac
+  shift
+done
+mkdir -p "$(dirname "$dest")" && touch "$dest"
+EOF
+  cat > "$MOCK_BIN/vim" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/curl" "$MOCK_BIN/vim"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run install_vim_plugins
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Bootstrapping"* ]]
+}
+
+@test "install_nvim_plugins bootstraps vim-plug when it is missing" {
+  cat > "$MOCK_BIN/curl" << 'EOF'
+#!/bin/bash
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -fLo|-Lo|-o) shift; dest="$1" ;;
+  esac
+  shift
+done
+mkdir -p "$(dirname "$dest")" && touch "$dest"
+EOF
+  cat > "$MOCK_BIN/nvim" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/curl" "$MOCK_BIN/nvim"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run install_nvim_plugins
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Bootstrapping"* ]]
+}
+
+# ---------------------------------------------------------------------------
 # install_ohmyzsh
 # ---------------------------------------------------------------------------
 

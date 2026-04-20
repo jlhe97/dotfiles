@@ -27,3 +27,6 @@ RUN test -L "$HOME/.tmux.conf" \
     && test -L "$HOME/.vimrc" \
     && test -L "$HOME/.zshrc" \
     && test -L "$HOME/.config/nvim"
+
+# Verify nvim plugins installed
+RUN test -d "$HOME/.local/share/nvim/plugged"

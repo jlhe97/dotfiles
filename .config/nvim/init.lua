@@ -1,12 +1,6 @@
 -- Minimal Neovim config for C/C++ development with LSP
 
--- Install vim-plug if not already installed
-local install_path = vim.fn.stdpath('data') .. '/site/autoload/plug.vim'
-if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
-  vim.fn.system({'curl', '-fLo', install_path, '--create-dirs',
-    'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'})
-  vim.cmd('autocmd VimEnter * PlugInstall --sync | source $MYVIMRC')
-end
+-- vim-plug is bootstrapped by install.sh; nothing to do here.
 
 
 -- Plugins
@@ -40,7 +34,11 @@ local on_attach = function(client, bufnr)
   vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
 end
 
-local capabilities = require("cmp_nvim_lsp").default_capabilities()
+local ok_lsp, cmp_nvim_lsp = pcall(require, 'cmp_nvim_lsp')
+local capabilities = ok_lsp
+  and cmp_nvim_lsp.default_capabilities()
+  or vim.lsp.protocol.make_client_capabilities()
+
 -- Auto-start rust-analyzer for Rust files
 vim.api.nvim_create_autocmd("FileType", {
   pattern = {"rust"},
@@ -61,35 +59,36 @@ vim.api.nvim_create_autocmd("FileType", {
 })
 
 -- Setup nvim-cmp for autocompletion
-local cmp = require('cmp')
-cmp.setup({
-  mapping = cmp.mapping.preset.insert({
-    ['<C-b>'] = cmp.mapping.scroll_docs(-4),
-    ['<C-f>'] = cmp.mapping.scroll_docs(4),
-    ['<C-Space>'] = cmp.mapping.complete(),
-    ['<C-e>'] = cmp.mapping.abort(),
-    ['<CR>'] = cmp.mapping.confirm({ select = true }),
-    ['<Tab>'] = cmp.mapping(function(fallback)
-      if cmp.visible() then
-        cmp.select_next_item()
-      else
-        fallback()
-      end
-    end, { 'i', 's' }),
-    ['<S-Tab>'] = cmp.mapping(function(fallback)
-      if cmp.visible() then
-        cmp.select_prev_item()
-      else
-        fallback()
-      end
-    end, { 'i', 's' }),
-  }),
-  sources = cmp.config.sources({
-    { name = 'nvim_lsp' },
-    { name = 'buffer' },
+local ok_cmp, cmp = pcall(require, 'cmp')
+if ok_cmp then
+  cmp.setup({
+    mapping = cmp.mapping.preset.insert({
+      ['<C-b>'] = cmp.mapping.scroll_docs(-4),
+      ['<C-f>'] = cmp.mapping.scroll_docs(4),
+      ['<C-Space>'] = cmp.mapping.complete(),
+      ['<C-e>'] = cmp.mapping.abort(),
+      ['<CR>'] = cmp.mapping.confirm({ select = true }),
+      ['<Tab>'] = cmp.mapping(function(fallback)
+        if cmp.visible() then
+          cmp.select_next_item()
+        else
+          fallback()
+        end
+      end, { 'i', 's' }),
+      ['<S-Tab>'] = cmp.mapping(function(fallback)
+        if cmp.visible() then
+          cmp.select_prev_item()
+        else
+          fallback()
+        end
+      end, { 'i', 's' }),
+    }),
+    sources = cmp.config.sources({
+      { name = 'nvim_lsp' },
+      { name = 'buffer' },
+    })
   })
-})
-
+end
 
 -- Auto-start clangd for C/C++ files
 vim.api.nvim_create_autocmd("FileType", {
