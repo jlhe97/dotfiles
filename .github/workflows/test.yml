@@ -23,6 +23,22 @@ jobs:
       - name: Test
         run: docker run --rm dotfiles-test
 
+  e2e:
+    name: E2E ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu
+            dockerfile: docker/ubuntu-e2e.Dockerfile
+          - name: Fedora
+            dockerfile: docker/fedora-e2e.Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run install.sh
+        run: docker build -f ${{ matrix.dockerfile }} -t dotfiles-e2e .
+
   test-macos:
     name: macOS
     runs-on: macos-latest

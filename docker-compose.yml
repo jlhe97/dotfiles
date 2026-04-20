@@ -12,3 +12,13 @@ services:
       dockerfile: docker/fedora.Dockerfile
     volumes:
       - .:/dotfiles
+
+  ubuntu-e2e:
+    build:
+      context: .
+      dockerfile: docker/ubuntu-e2e.Dockerfile
+
+  fedora-e2e:
+    build:
+      context: .
+      dockerfile: docker/fedora-e2e.Dockerfile
