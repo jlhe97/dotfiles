@@ -81,11 +81,14 @@ _uninstall() {
   [ ! -e "$TEST_HOME/.zshrc" ]
   [ ! -e "$TEST_HOME/.neomuttrc" ]
   [ ! -e "$TEST_HOME/.slconfig" ]
+  [ ! -e "$TEST_HOME/.neomutt/macos.rc" ]
+  [ ! -e "$TEST_HOME/.neomutt/linux.rc" ]
 }
 
-@test "uninstall removes the .config/nvim symlink" {
+@test "uninstall removes the .config/nvim and .claude/skills symlinks" {
   _uninstall
   [ ! -e "$TEST_HOME/.config/nvim" ]
+  [ ! -e "$TEST_HOME/.claude/skills" ]
 }
 
 @test "second uninstall exits cleanly" {
