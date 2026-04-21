@@ -268,7 +268,8 @@ backup_and_link() {
     elif [ -e "$dest" ]; then
         # Real file or directory — back it up
         mkdir -p "$BACKUP_DIR"
-        local backup_path="$BACKUP_DIR/$(basename "$dest")"
+        local backup_path
+        backup_path="$BACKUP_DIR/$(basename "$dest")"
         info "Backing up existing $dest to $backup_path"
         mv "$dest" "$backup_path"
     fi
