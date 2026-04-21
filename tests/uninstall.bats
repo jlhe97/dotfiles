@@ -191,6 +191,79 @@ remove_dotfile_symlinks() {
 }
 
 # ---------------------------------------------------------------------------
+# restore_default_shell
+# ---------------------------------------------------------------------------
+
+@test "restore_default_shell skips when bash is already the default shell" {
+  local mock_bash="$TEST_HOME/mock_bin/bash"
+  mkdir -p "$TEST_HOME/mock_bin"
+  printf '#!/bin/bash\nexit 0\n' > "$mock_bash"
+  printf "#!/bin/bash\necho '%s'\n" "$mock_bash" > "$TEST_HOME/mock_bin/which"
+  chmod +x "$mock_bash" "$TEST_HOME/mock_bin/which"
+  local orig_path="$PATH"
+  export PATH="$TEST_HOME/mock_bin:$PATH"
+  export SHELL="$mock_bash"
+
+  run restore_default_shell
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"already the default shell"* ]]
+}
+
+@test "restore_default_shell calls chsh when shell differs from bash" {
+  local chsh_log="$TEST_HOME/chsh.log"
+  local mock_bash="$TEST_HOME/mock_bin/bash"
+  mkdir -p "$TEST_HOME/mock_bin"
+  printf '#!/bin/bash\nexit 0\n'                             > "$mock_bash"
+  printf "#!/bin/bash\necho '%s'\n" "$mock_bash"             > "$TEST_HOME/mock_bin/which"
+  printf '#!/bin/bash\necho "chsh $*" >> "%s"\n' "$chsh_log" > "$TEST_HOME/mock_bin/chsh"
+  chmod +x "$mock_bash" "$TEST_HOME/mock_bin/which" "$TEST_HOME/mock_bin/chsh"
+  local orig_path="$PATH"
+  export PATH="$TEST_HOME/mock_bin:$PATH"
+  export SHELL="/bin/zsh"
+
+  run restore_default_shell
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Restoring bash"* ]]
+  [[ "$(cat "$chsh_log")" == *"$mock_bash"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# uninstall_ghostty
+# ---------------------------------------------------------------------------
+
+@test "uninstall_ghostty exits cleanly when ghostty is not on PATH" {
+  mkdir -p "$TEST_HOME/empty_bin"
+  local orig_path="$PATH"
+  export PATH="$TEST_HOME/empty_bin"
+
+  run uninstall_ghostty
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"not installed"* ]]
+}
+
+@test "uninstall_ghostty uses brew when ghostty and brew are available" {
+  local brew_log="$TEST_HOME/brew.log"
+  mkdir -p "$TEST_HOME/mock_bin"
+  printf '#!/bin/bash\nexit 0\n'                              > "$TEST_HOME/mock_bin/ghostty"
+  printf '#!/bin/bash\necho "brew $*" >> "%s"\n' "$brew_log" > "$TEST_HOME/mock_bin/brew"
+  chmod +x "$TEST_HOME/mock_bin/ghostty" "$TEST_HOME/mock_bin/brew"
+  local orig_path="$PATH"
+  export PATH="$TEST_HOME/mock_bin:$PATH"
+
+  run uninstall_ghostty
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$brew_log")" == *"uninstall ghostty"* ]]
+}
+
+# ---------------------------------------------------------------------------
 # ERR trap — mid-function failure detail
 # ---------------------------------------------------------------------------
 
