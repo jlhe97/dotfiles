@@ -34,6 +34,9 @@ TARGETS=(
     "$HOME/.zshrc"
     "$HOME/.neomuttrc"
     "$HOME/.slconfig"
+    "$HOME/.neomutt/macos.rc"
+    "$HOME/.neomutt/linux.rc"
+    "$HOME/.claude/skills"
 )
 
 uninstall_via_packagefile() {
