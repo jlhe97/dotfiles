@@ -80,6 +80,7 @@ _uninstall() {
   [ ! -e "$TEST_HOME/.vimrc.plug" ]
   [ ! -e "$TEST_HOME/.zshrc" ]
   [ ! -e "$TEST_HOME/.neomuttrc" ]
+  [ ! -e "$TEST_HOME/.slconfig" ]
 }
 
 @test "uninstall removes the .config/nvim symlink" {
