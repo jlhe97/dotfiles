@@ -33,6 +33,7 @@ TARGETS=(
     "$HOME/.config/nvim"
     "$HOME/.zshrc"
     "$HOME/.neomuttrc"
+    "$HOME/.slconfig"
 )
 
 uninstall_via_packagefile() {
