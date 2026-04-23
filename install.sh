@@ -37,7 +37,6 @@ FILES=(
     ".neomutt/linux.rc"
     ".neomutt/local.rc"
     ".zshrc.local"
-    ".claude/settings.local.json"
     ".slconfig"
 )
 
@@ -45,6 +44,7 @@ FILES=(
 DIRS=(
     ".config/nvim"
     ".claude/skills"
+    "bin"
 )
 
 install_ghostty() {
@@ -435,7 +435,8 @@ main() {
     echo "  - neomutt  (~/.neomuttrc, ~/.neomutt/)"
     echo "  - sapling  (vcs — sl)"
     echo "  - ghostty  (terminal emulator)"
-    echo "  - claude   (~/.claude/settings.local.json, ~/.claude/skills/)"
+    echo "  - claude   (~/.claude/skills/)"
+  echo "  - scripts  (~/bin/)"
     echo ""
     echo "Note: You may need to:"
     echo "  - Restart your terminal for zsh to take effect"

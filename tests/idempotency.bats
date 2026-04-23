@@ -18,7 +18,8 @@ setup() {
   mkdir -p \
     "$FAKE_DOTFILES/.neomutt" \
     "$FAKE_DOTFILES/.config/nvim" \
-    "$FAKE_DOTFILES/.claude/skills"
+    "$FAKE_DOTFILES/.claude/skills" \
+    "$FAKE_DOTFILES/bin"
   for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .zshrc.local .slconfig; do
     touch "$FAKE_DOTFILES/$f"
   done

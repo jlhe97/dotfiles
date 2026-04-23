@@ -20,9 +20,14 @@ RUN command -v tmux && command -v nvim && command -v neomutt && command -v zsh
 # Verify dotfile symlinks created
 RUN test -L "$HOME/.tmux.conf" \
     && test -L "$HOME/.vimrc" \
+    && test -L "$HOME/.vimrc.plug" \
     && test -L "$HOME/.zshrc" \
+    && test -L "$HOME/.neomuttrc" \
     && test -L "$HOME/.config/nvim" \
-    && test -L "$HOME/.slconfig"
+    && test -L "$HOME/.slconfig" \
+    && test -L "$HOME/.neomutt/linux.rc" \
+    && test -L "$HOME/.claude/skills" \
+    && test -L "$HOME/bin"
 
 # Verify nvim plugins installed
 RUN test -d "$HOME/.local/share/nvim/plugged"
