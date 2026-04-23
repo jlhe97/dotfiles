@@ -3,3 +3,5 @@ neovim
 neomutt
 b4
 zsh
+xclip
+wl-clipboard

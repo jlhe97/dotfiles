@@ -1,0 +1,2 @@
+# Source local overrides (not committed to public dotfiles)
+source `test -f ~/.neomutt/local.rc && echo ~/.neomutt/local.rc || echo /dev/null`

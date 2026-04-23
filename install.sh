@@ -37,7 +37,6 @@ FILES=(
     ".neomutt/linux.rc"
     ".neomutt/local.rc"
     ".zshrc.local"
-    ".claude/settings.local.json"
     ".slconfig"
 )
 
@@ -45,6 +44,7 @@ FILES=(
 DIRS=(
     ".config/nvim"
     ".claude/skills"
+    "bin"
 )
 
 install_ghostty() {
@@ -148,7 +148,7 @@ configure_sapling() {
 set_default_shell() {
     trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     local zsh_path
-    zsh_path="$(which zsh)"
+    zsh_path="$(command -v zsh)"
 
     if [ "$SHELL" = "$zsh_path" ]; then
         info "zsh is already the default shell"
@@ -435,7 +435,8 @@ main() {
     echo "  - neomutt  (~/.neomuttrc, ~/.neomutt/)"
     echo "  - sapling  (vcs — sl)"
     echo "  - ghostty  (terminal emulator)"
-    echo "  - claude   (~/.claude/settings.local.json, ~/.claude/skills/)"
+    echo "  - claude   (~/.claude/skills/)"
+  echo "  - scripts  (~/bin/)"
     echo ""
     echo "Note: You may need to:"
     echo "  - Restart your terminal for zsh to take effect"

@@ -102,19 +102,10 @@ fi
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
 
 # email setup
 export TERM=xterm-256color
 
 # Source local overrides (not committed to public dotfiles)
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
-# Threading — important for mailing list patches
-set sort = "threads"
-set sort_aux = "date"
-
-# Don't wrap long lines (important for patches)
-set wrap = no
-
-# Use your preferred pager
-set pager = "less"

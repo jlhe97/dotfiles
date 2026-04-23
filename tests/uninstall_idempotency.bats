@@ -15,7 +15,8 @@ setup() {
   mkdir -p \
     "$FAKE_DOTFILES/.neomutt" \
     "$FAKE_DOTFILES/.config/nvim" \
-    "$FAKE_DOTFILES/.claude/skills"
+    "$FAKE_DOTFILES/.claude/skills" \
+    "$FAKE_DOTFILES/bin"
   for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .zshrc.local .slconfig; do
     touch "$FAKE_DOTFILES/$f"
   done
@@ -83,6 +84,7 @@ _uninstall() {
   [ ! -e "$TEST_HOME/.slconfig" ]
   [ ! -e "$TEST_HOME/.neomutt/macos.rc" ]
   [ ! -e "$TEST_HOME/.neomutt/linux.rc" ]
+  [ ! -e "$TEST_HOME/bin" ]
 }
 
 @test "uninstall removes the .config/nvim and .claude/skills symlinks" {

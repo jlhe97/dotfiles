@@ -37,6 +37,7 @@ TARGETS=(
     "$HOME/.neomutt/macos.rc"
     "$HOME/.neomutt/linux.rc"
     "$HOME/.claude/skills"
+    "$HOME/bin"
 )
 
 uninstall_via_packagefile() {

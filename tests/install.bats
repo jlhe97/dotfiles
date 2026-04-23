@@ -512,3 +512,153 @@ EOF
   DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   [[ "$captured" == *"command failed"* ]]
 }
+
+@test "install_via_packagefile installs each package from dnf.txt via dnf" {
+  local log="$TEST_HOME/dnf.log"
+  cat > "$MOCK_BIN/sudo" << 'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+  cat > "$MOCK_BIN/dnf" << EOF
+#!/bin/bash
+echo "dnf \$*" >> "$log"
+EOF
+  chmod +x "$MOCK_BIN/sudo" "$MOCK_BIN/dnf"
+
+  local fake_dotfiles="$TEST_HOME/fake_dotfiles"
+  mkdir -p "$fake_dotfiles/packages"
+  printf 'tmux\nneovim\n' > "$fake_dotfiles/packages/dnf.txt"
+  DOTFILES_DIR="$fake_dotfiles"
+
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_via_packagefile
+
+  export PATH="$orig_path"
+  DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
+
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$log")" == *"install -y tmux"* ]]
+  [[ "$(cat "$log")" == *"install -y neovim"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# install_via_brewfile
+# ---------------------------------------------------------------------------
+
+@test "install_via_brewfile warns and returns 1 when brew is not on PATH" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_via_brewfile
+
+  export PATH="$orig_path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"[WARN]"* ]]
+  [[ "$output" == *"Homebrew not found"* ]]
+}
+
+@test "install_via_brewfile runs brew bundle when brew is available" {
+  local log="$TEST_HOME/brew.log"
+  cat > "$MOCK_BIN/brew" << EOF
+#!/bin/bash
+echo "brew \$*" >> "$log"
+EOF
+  chmod +x "$MOCK_BIN/brew"
+
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run install_via_brewfile
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$log")" == *"bundle install"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# set_default_shell
+# ---------------------------------------------------------------------------
+
+@test "set_default_shell skips when zsh is already the default shell" {
+  cat > "$MOCK_BIN/zsh" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/zsh"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+  export SHELL="$MOCK_BIN/zsh"
+
+  run set_default_shell
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"already the default shell"* ]]
+}
+
+@test "set_default_shell calls chsh when a different shell is active" {
+  local log="$TEST_HOME/chsh.log"
+  cat > "$MOCK_BIN/zsh" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  cat > "$MOCK_BIN/chsh" << EOF
+#!/bin/bash
+echo "chsh \$*" >> "$log"
+EOF
+  # /etc/shells must contain zsh path for the grep check; stub it via a
+  # temp file and override with a no-op grep that always succeeds.
+  cat > "$MOCK_BIN/grep" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/zsh" "$MOCK_BIN/chsh" "$MOCK_BIN/grep"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+  export SHELL="/bin/bash"
+
+  run set_default_shell
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Setting zsh as default shell"* ]]
+  [[ "$(cat "$log")" == *"chsh"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# install_ghostty / install_sapling — already-installed fast paths
+# ---------------------------------------------------------------------------
+
+@test "install_ghostty skips when ghostty is already on PATH" {
+  cat > "$MOCK_BIN/ghostty" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/ghostty"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run install_ghostty
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"already installed"* ]]
+}
+
+@test "install_sapling skips when sl is already on PATH" {
+  cat > "$MOCK_BIN/sl" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/sl"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run install_sapling
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"already installed"* ]]
+}
