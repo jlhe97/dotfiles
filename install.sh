@@ -148,7 +148,7 @@ configure_sapling() {
 set_default_shell() {
     trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     local zsh_path
-    zsh_path="$(which zsh)"
+    zsh_path="$(command -v zsh)"
 
     if [ "$SHELL" = "$zsh_path" ]; then
         info "zsh is already the default shell"
