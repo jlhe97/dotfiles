@@ -310,6 +310,24 @@ resolve_identity() {
     echo ""
 }
 
+# Echo a `set ssl_ca_certificates_file` line for local.rc ONLY when neomutt is a
+# GnuTLS build (Debian/Ubuntu). OpenSSL builds (Fedora/RHEL, macOS) reject the
+# option and use the system trust store automatically. Always returns 0.
+neomutt_ca_line() {
+    command -v neomutt &>/dev/null || return 0
+    neomutt -v 2>/dev/null | grep -qi gnutls || return 0
+    local f
+    for f in /etc/ssl/certs/ca-certificates.crt \
+             /etc/pki/tls/certs/ca-bundle.crt \
+             /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem; do
+        if [ -f "$f" ]; then
+            echo "set ssl_ca_certificates_file = \"$f\""
+            return 0
+        fi
+    done
+    return 0
+}
+
 main() {
     USER_NAME=""
     USER_EMAIL=""
@@ -381,12 +399,15 @@ main() {
        grep -qF "set nm_default_url = " "$local_rc"; then
         info "Identity in .neomutt/local.rc is already up to date"
     else
+        local ca_line
+        ca_line="$(neomutt_ca_line)"
         {
             echo "set imap_user = \"$USER_EMAIL\""
             echo "set from = \"$USER_EMAIL\""
             echo "set real_name = \"$USER_NAME\""
             echo "set smtp_url = \"smtp://${USER_EMAIL}@smtp.fastmail.com:587/\""
             echo "set nm_default_url = \"notmuch://$HOME/Mail/fastmail\""
+            if [ -n "$ca_line" ]; then echo "$ca_line"; fi
         } > "$local_rc"
         info "Written .neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
     fi

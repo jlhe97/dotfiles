@@ -1,4 +1,7 @@
-set ssl_ca_certificates_file = "/etc/ssl/certs/ca-certificates.crt"
+# ssl_ca_certificates_file only exists in GnuTLS builds of neomutt
+# (Debian/Ubuntu); OpenSSL builds (Fedora/RHEL) use the system trust store
+# automatically and reject the option. install.sh detects the build and, only
+# when needed, writes the correct per-distro CA path into local.rc below.
 
 # Source local overrides (not committed to public dotfiles)
 source `test -f ~/.neomutt/local.rc && echo ~/.neomutt/local.rc || echo /dev/null`

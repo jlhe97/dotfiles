@@ -3,6 +3,7 @@ neovim
 neomutt
 isync
 notmuch
+keyutils
 b4
 zsh
 ghostty
