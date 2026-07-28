@@ -1,0 +1,23 @@
+#!/bin/bash
+# Resolve the Fastmail app password per-OS. No GPG in the mail path, so there
+# is no gpg-agent/scdaemon to wedge. Used by both mbsync (PassCmd in ~/.mbsyncrc)
+# and neomutt (smtp_pass in ~/.neomuttrc).
+#
+# Store the secret once per machine:
+#   macOS:  security add-generic-password -s fastmail-imap -a <email> -w
+#   Linux:  secret-tool store --label=fastmail-imap service fastmail-imap
+#     (or)  pass insert fastmail-imap
+set -euo pipefail
+
+SERVICE="fastmail-imap"
+
+if [[ "$(uname)" == "Darwin" ]]; then
+    security find-generic-password -s "$SERVICE" -w
+elif command -v secret-tool &>/dev/null; then
+    secret-tool lookup service "$SERVICE"
+elif command -v pass &>/dev/null; then
+    pass show "$SERVICE"
+else
+    echo "mail-pass: no secret backend found (need macOS security, secret-tool, or pass)" >&2
+    exit 1
+fi

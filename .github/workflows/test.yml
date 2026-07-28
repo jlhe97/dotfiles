@@ -67,7 +67,7 @@ jobs:
       - name: Run install.sh
         run: ./install.sh --name "Test User" --email "test@example.com"
       - name: Verify packages on PATH
-        run: command -v tmux && command -v nvim && command -v neomutt && command -v zsh
+        run: command -v tmux && command -v nvim && command -v neomutt && command -v zsh && command -v mbsync && command -v notmuch
       - name: Verify dotfile symlinks
         run: |
           test -L "$HOME/.tmux.conf"

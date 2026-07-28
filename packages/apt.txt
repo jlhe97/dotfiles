@@ -1,6 +1,8 @@
 tmux
 neovim
 neomutt
+isync
+notmuch
 b4
 zsh
 xclip

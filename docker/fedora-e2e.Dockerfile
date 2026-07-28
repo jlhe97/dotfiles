@@ -15,7 +15,8 @@ ENV HOME=/home/testuser
 RUN ./install.sh --name "Test User" --email "test@example.com"
 
 # Verify packages installed via packages/dnf.txt
-RUN command -v tmux && command -v nvim && command -v neomutt && command -v zsh
+RUN command -v tmux && command -v nvim && command -v neomutt && command -v zsh \
+    && command -v mbsync && command -v notmuch
 
 # Verify dotfile symlinks created
 RUN test -L "$HOME/.tmux.conf" \

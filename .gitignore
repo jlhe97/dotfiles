@@ -7,6 +7,8 @@
 # Local overrides (machine-specific, not public)
 .zshrc.local
 .neomutt/local.rc
+.mbsyncrc
+.notmuch-config
 
 # Claude ephemeral/session data
 .claude/cache/

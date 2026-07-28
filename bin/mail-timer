@@ -1,0 +1,82 @@
+#!/bin/bash
+# Install (or refresh) a periodic mail-sync timer for the current OS.
+#   macOS: a launchd LaunchAgent      (~/Library/LaunchAgents/com.jlhe.mail-sync.plist)
+#   Linux: a systemd --user timer     (~/.config/systemd/user/mail-sync.{service,timer})
+# Idempotent: safe to re-run. Runs mail-sync every 5 minutes.
+set -euo pipefail
+
+INTERVAL=300  # seconds
+SYNC="$HOME/bin/mail-sync"
+
+if [ ! -x "$SYNC" ]; then
+    echo "mail-timer: $SYNC not found or not executable" >&2
+    exit 1
+fi
+
+if [[ "$(uname)" == "Darwin" ]]; then
+    label="com.jlhe.mail-sync"
+    plist="$HOME/Library/LaunchAgents/$label.plist"
+    # launchd does not inherit an interactive PATH; point it at wherever
+    # mbsync/notmuch actually live plus ~/bin.
+    tools_dir="$(dirname "$(command -v mbsync)")"
+    mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
+    cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>$label</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$SYNC</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>$tools_dir:$HOME/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>$HOME</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>$INTERVAL</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$HOME/Library/Logs/mail-sync.log</string>
+    <key>StandardErrorPath</key>
+    <string>$HOME/Library/Logs/mail-sync.log</string>
+</dict>
+</plist>
+EOF
+    # Reload: bootout the old instance (ignore if not loaded), then bootstrap.
+    launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+    launchctl bootstrap "gui/$(id -u)" "$plist"
+    echo "mail-timer: launchd agent loaded ($label, every ${INTERVAL}s). Logs: ~/Library/Logs/mail-sync.log"
+else
+    unit_dir="$HOME/.config/systemd/user"
+    mkdir -p "$unit_dir"
+    cat > "$unit_dir/mail-sync.service" <<EOF
+[Unit]
+Description=Sync Fastmail into the local notmuch database
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/mail-sync
+EOF
+    cat > "$unit_dir/mail-sync.timer" <<EOF
+[Unit]
+Description=Run mail-sync every $((INTERVAL / 60)) minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=${INTERVAL}s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+    systemctl --user daemon-reload
+    systemctl --user enable --now mail-sync.timer
+    echo "mail-timer: systemd user timer enabled (every $((INTERVAL / 60))m). Status: systemctl --user status mail-sync.timer"
+fi

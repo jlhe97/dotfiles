@@ -15,11 +15,11 @@ Personal configuration files, managed with symlinks.
 ## Contents
 
 - `.zshrc` — zsh configuration
-- `.neomuttrc` — neomutt config with patch syntax highlighting, sidebar, and vim keybindings
+- `.neomuttrc` — neomutt config (local notmuch mail via mbsync) with patch syntax highlighting, sidebar, and vim keybindings
 - `.config/nvim/init.lua` — neovim config with LSP (clangd, rust-analyzer) and nvim-cmp
 - `.tmux.conf` — tmux configuration with cross-platform clipboard (pbcopy / wl-copy / xclip)
 - `.vimrc` / `.vimrc.plug` — vim configuration
-- `bin/` — helper scripts: `lei-sync` (mailing list sync), `mutt` (neomutt wrapper)
+- `bin/` — helper scripts: `mail-sync` (mbsync + notmuch), `mail-pass` (per-OS password lookup), `mail-timer` (install a periodic-sync launchd/systemd timer), `mutt` (sync-then-neomutt wrapper), `lei-sync` (kernel mailing-list sync)
 
 ## Setup
 
