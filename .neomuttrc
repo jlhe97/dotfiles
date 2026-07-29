@@ -38,6 +38,12 @@ virtual-mailboxes \
 set record = "~/Mail/fastmail/Sent"
 set copy = yes
 
+# --- Performance (large local mailboxes) ---
+# Cache parsed headers so re-opening a big vfolder doesn't re-read every file.
+set header_cache = "~/.cache/neomutt"
+# Trust the cache instead of stat-ing every message file to verify freshness.
+set maildir_header_cache_verify = no
+
 # syntax highlighting
 color body green default "^[+].*"
 color body red default "^-.*"

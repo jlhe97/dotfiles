@@ -366,6 +366,9 @@ main() {
 
     resolve_identity
 
+    # neomutt header cache dir (speeds up opening large notmuch vfolders)
+    mkdir -p "$HOME/.cache/neomutt"
+
     if [[ "$(uname)" == "Darwin" ]]; then
         # macOS: declarative install via Brewfile (tmux, neovim, neomutt, sapling, b4, ghostty, zsh)
         install_via_brewfile || warn "Brewfile install incomplete — some packages may be missing"
