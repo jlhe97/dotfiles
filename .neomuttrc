@@ -43,6 +43,10 @@ set copy = yes
 set header_cache = "~/.cache/neomutt"
 # Trust the cache instead of stat-ing every message file to verify freshness.
 set maildir_header_cache_verify = no
+# Cap how many messages each notmuch query loads at startup. Loading every
+# message (1000s) is what makes launch slow; notmuch itself is fast, so older
+# mail stays instantly searchable via <change-vfolder> (X). Raise if needed.
+set nm_db_limit = 500
 
 # syntax highlighting
 color body green default "^[+].*"
