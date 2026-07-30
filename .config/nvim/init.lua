@@ -12,6 +12,7 @@ vim.call('plug#', 'rust-lang/rust.vim')
 vim.call('plug#', 'preservim/nerdtree')
 vim.call('plug#', 'junegunn/fzf')
 vim.call('plug#', 'junegunn/fzf.vim')
+vim.call('plug#', 'Mofiqul/vscode.nvim')
 vim.call('plug#end')
 
 -- Basic settings
@@ -23,6 +24,11 @@ vim.opt.softtabstop = 8
 vim.opt.autoindent = true
 vim.opt.signcolumn = 'yes'
 vim.opt.updatetime = 300
+
+-- Color scheme: match VSCode's default dark theme (Dark+/Dark Modern)
+vim.opt.termguicolors = true
+vim.o.background = 'dark'
+pcall(vim.cmd.colorscheme, 'vscode')
 
 -- NERDTree file explorer
 vim.g.NERDTreeShowHidden = 1          -- show dotfiles
