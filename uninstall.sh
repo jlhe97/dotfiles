@@ -34,6 +34,8 @@ TARGETS=(
     "$HOME/.zshrc"
     "$HOME/.neomuttrc"
     "$HOME/.slconfig"
+    "$HOME/.mbsyncrc"
+    "$HOME/.notmuch-config"
     "$HOME/.neomutt/macos.rc"
     "$HOME/.neomutt/linux.rc"
     "$HOME/.claude/skills"

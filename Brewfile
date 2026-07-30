@@ -1,6 +1,8 @@
 brew "tmux"
 brew "neovim"
 brew "neomutt"
+brew "isync"
+brew "notmuch"
 brew "sapling"
 brew "b4"
 brew "zsh"

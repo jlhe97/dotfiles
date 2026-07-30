@@ -83,6 +83,16 @@ System operations that touch the real host (package managers, chsh, oh-my-zsh do
 
 ### Identity & machine-specific config
 
-`resolve_identity()` writes `$DOTFILES_DIR/.neomutt/local.rc` with IMAP/SMTP/GPG settings. The file is gitignored (machine-specific). `configure_git()` and `configure_sapling()` set `user.name`/`user.email` globally; both are idempotent (skip if already matching).
+`resolve_identity()` collects name/email; `main()` then generates three gitignored, machine-specific files from that identity and symlinks them via `FILES`:
+
+- `.neomutt/local.rc` — `imap_user`/`from`/`real_name`/`smtp_url`/`nm_default_url` (sourced by the platform rc; its write-guard requires all three of `real_name`, `imap_user`, `nm_default_url` to be present before skipping the rewrite).
+- `.mbsyncrc` — mbsync IMAP→maildir config; password via `PassCmd "$HOME/bin/mail-pass"`.
+- `.notmuch-config` — notmuch database path + identity.
+
+`configure_git()` and `configure_sapling()` set `user.name`/`user.email` globally; both are idempotent (skip if already matching).
 
 `.zshrc.local` is also gitignored and sourced by `.zshrc` for machine-specific shell config.
+
+### Mail architecture
+
+Mail is **local**: `mbsync` (isync) pulls Fastmail into `~/Mail/fastmail`, `notmuch` indexes it for cross-folder threading, and neomutt reads the notmuch database (`virtual-mailboxes`). No live IMAP, no GPG in the mail path. The Fastmail app password lives in the OS secret store and is read by `bin/mail-pass`, used by both mbsync and neomutt SMTP: macOS Keychain (`security`), or on Linux the first of `secret-tool` (libsecret), `keyctl` (kernel keyring, for headless boxes), or `pass` (GPG) that returns a non-empty secret. `bin/mail-sync` runs `mbsync -a && notmuch new`; `bin/mutt` runs it before launching neomutt. `bin/mail-timer` installs a periodic-sync timer for the current OS (launchd LaunchAgent on macOS, systemd `--user` timer on Linux); run it once per machine. (`bin/lei-sync` for kernel mailing lists is retained but no longer wired into the launch path.)

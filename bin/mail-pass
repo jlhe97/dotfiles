@@ -1,0 +1,41 @@
+#!/bin/bash
+# Resolve the Fastmail app password per-OS. No GPG required in the mail path,
+# so there is no gpg-agent/scdaemon to wedge. Used by both mbsync (PassCmd in
+# ~/.mbsyncrc) and neomutt (smtp_pass in ~/.neomuttrc).
+#
+# Store the secret once per machine:
+#   macOS:            security add-generic-password -s fastmail-imap -a <email> -w
+#   Linux desktop:    secret-tool store --label=fastmail-imap service fastmail-imap
+#   Linux headless:   keyctl add user fastmail-imap "<app-password>" @u
+#                       (kernel keyring; re-add after a reboot)
+#   Linux (any):      pass insert fastmail-imap
+#
+# On Linux the backends are tried in order and the first that returns a
+# non-empty secret wins, so a locked/absent secret-tool on a headless box
+# falls through to keyctl or pass automatically.
+set -uo pipefail
+
+SERVICE="fastmail-imap"
+
+emit() { [ -n "${1:-}" ] && { printf '%s' "$1"; exit 0; }; }
+
+if [[ "$(uname)" == "Darwin" ]]; then
+    security find-generic-password -s "$SERVICE" -w 2>/dev/null && exit 0
+    echo "mail-pass: '$SERVICE' not found in Keychain" >&2
+    exit 1
+fi
+
+# Linux: secret-tool (libsecret) -> keyctl (kernel keyring) -> pass (GPG)
+if command -v secret-tool &>/dev/null; then
+    emit "$(secret-tool lookup service "$SERVICE" 2>/dev/null || true)"
+fi
+if command -v keyctl &>/dev/null; then
+    id="$(keyctl search @u user "$SERVICE" 2>/dev/null || true)"
+    [ -n "$id" ] && emit "$(keyctl print "$id" 2>/dev/null || true)"
+fi
+if command -v pass &>/dev/null; then
+    emit "$(pass show "$SERVICE" 2>/dev/null || true)"
+fi
+
+echo "mail-pass: no secret found for '$SERVICE' (tried secret-tool, keyctl, pass)" >&2
+exit 1

@@ -1,0 +1,23 @@
+#!/bin/bash
+# Pull Fastmail into the local maildir and (re)index it with notmuch.
+# Run periodically (launchd/systemd timer) or on neomutt launch (see bin/mutt).
+set -euo pipefail
+
+MAIL_DIR="$HOME/Mail/fastmail"
+
+if ! command -v mbsync &>/dev/null; then
+    echo "mail-sync: mbsync not found (install isync)" >&2
+    exit 1
+fi
+if ! command -v notmuch &>/dev/null; then
+    echo "mail-sync: notmuch not found" >&2
+    exit 1
+fi
+
+mkdir -p "$MAIL_DIR"
+
+echo "Syncing Fastmail (mbsync)..."
+mbsync -a
+
+echo "Indexing (notmuch)..."
+notmuch new

@@ -36,6 +36,8 @@ FILES=(
     ".neomutt/macos.rc"
     ".neomutt/linux.rc"
     ".neomutt/local.rc"
+    ".mbsyncrc"
+    ".notmuch-config"
     ".zshrc.local"
     ".slconfig"
 )
@@ -308,6 +310,24 @@ resolve_identity() {
     echo ""
 }
 
+# Echo a `set ssl_ca_certificates_file` line for local.rc ONLY when neomutt is a
+# GnuTLS build (Debian/Ubuntu). OpenSSL builds (Fedora/RHEL, macOS) reject the
+# option and use the system trust store automatically. Always returns 0.
+neomutt_ca_line() {
+    command -v neomutt &>/dev/null || return 0
+    neomutt -v 2>/dev/null | grep -qi gnutls || return 0
+    local f
+    for f in /etc/ssl/certs/ca-certificates.crt \
+             /etc/pki/tls/certs/ca-bundle.crt \
+             /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem; do
+        if [ -f "$f" ]; then
+            echo "set ssl_ca_certificates_file = \"$f\""
+            return 0
+        fi
+    done
+    return 0
+}
+
 main() {
     USER_NAME=""
     USER_EMAIL=""
@@ -346,6 +366,9 @@ main() {
 
     resolve_identity
 
+    # neomutt header cache dir (speeds up opening large notmuch vfolders)
+    mkdir -p "$HOME/.cache/neomutt"
+
     if [[ "$(uname)" == "Darwin" ]]; then
         # macOS: declarative install via Brewfile (tmux, neovim, neomutt, sapling, b4, ghostty, zsh)
         install_via_brewfile || warn "Brewfile install incomplete — some packages may be missing"
@@ -375,17 +398,74 @@ main() {
     local local_rc="$DOTFILES_DIR/.neomutt/local.rc"
     if [ -f "$local_rc" ] && \
        grep -qF "set real_name = \"${USER_NAME}\"" "$local_rc" && \
-       grep -qF "set imap_user = \"${USER_EMAIL}\"" "$local_rc"; then
+       grep -qF "set imap_user = \"${USER_EMAIL}\"" "$local_rc" && \
+       grep -qF "set nm_default_url = " "$local_rc"; then
         info "Identity in .neomutt/local.rc is already up to date"
     else
+        local ca_line
+        ca_line="$(neomutt_ca_line)"
         {
             echo "set imap_user = \"$USER_EMAIL\""
             echo "set from = \"$USER_EMAIL\""
             echo "set real_name = \"$USER_NAME\""
             echo "set smtp_url = \"smtp://${USER_EMAIL}@smtp.fastmail.com:587/\""
+            echo "set nm_default_url = \"notmuch://$HOME/Mail/fastmail\""
+            if [ -n "$ca_line" ]; then echo "$ca_line"; fi
         } > "$local_rc"
         info "Written .neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
     fi
+
+    # Generate ~/.mbsyncrc (gitignored; contains email). Password comes from
+    # bin/mail-pass at sync time, so nothing secret is written here.
+    local mbsyncrc="$DOTFILES_DIR/.mbsyncrc"
+    {
+        echo "IMAPAccount fastmail"
+        echo "Host imap.fastmail.com"
+        echo "Port 993"
+        echo "User $USER_EMAIL"
+        echo "PassCmd \"\$HOME/bin/mail-pass\""
+        echo "TLSType IMAPS"
+        echo "AuthMechs LOGIN"
+        echo ""
+        echo "IMAPStore fastmail-remote"
+        echo "Account fastmail"
+        echo ""
+        echo "MaildirStore fastmail-local"
+        echo "Path ~/Mail/fastmail/"
+        echo "Inbox ~/Mail/fastmail/INBOX"
+        echo "Subfolders Verbatim"
+        echo ""
+        echo "Channel fastmail"
+        echo "Far :fastmail-remote:"
+        echo "Near :fastmail-local:"
+        echo "Patterns *"
+        echo "Create Both"
+        echo "Expunge Both"
+        echo "SyncState *"
+    } > "$mbsyncrc"
+    info "Written .mbsyncrc for $USER_EMAIL"
+
+    # Generate ~/.notmuch-config (gitignored; contains identity).
+    local notmuch_config="$DOTFILES_DIR/.notmuch-config"
+    {
+        echo "[database]"
+        echo "path=$HOME/Mail/fastmail"
+        echo ""
+        echo "[user]"
+        echo "name=$USER_NAME"
+        echo "primary_email=$USER_EMAIL"
+        echo ""
+        echo "[new]"
+        echo "tags=unread;inbox;"
+        echo "ignore="
+        echo ""
+        echo "[search]"
+        echo "exclude_tags=deleted;spam;"
+        echo ""
+        echo "[maildir]"
+        echo "synchronize_flags=true"
+    } > "$notmuch_config"
+    info "Written .notmuch-config for $USER_NAME <$USER_EMAIL>"
 
     # Install regular files
     for file in "${FILES[@]}"; do
@@ -443,35 +523,30 @@ main() {
     echo "  - Run 'tmux source ~/.tmux.conf' to reload tmux config"
     echo ""
     echo "=========================================="
-    echo "       Fastmail Neomutt Setup            "
+    echo "       Fastmail Mail Setup (mbsync + notmuch)"
     echo "=========================================="
     echo ""
-    echo "To configure neomutt with Fastmail:"
+    echo "Mail syncs locally with mbsync and is indexed by notmuch; neomutt"
+    echo "reads the local database. Finish setup on this machine:"
     echo ""
-    echo "1. Generate an app-specific password:"
-    echo "   - Go to https://www.fastmail.com/settings/security/tokens"
-    echo "   - Click 'New App Password'"
-    echo "   - Select 'Mail (IMAP/POP/SMTP)' access"
-    echo "   - Copy the generated password"
+    echo "1. Generate a Fastmail app-specific password:"
+    echo "   - https://www.fastmail.com/settings/security/tokens"
+    echo "   - 'New App Password' -> 'Mail (IMAP/POP/SMTP)'"
     echo ""
-    echo "2. Create the neomutt config directory:"
-    echo "   mkdir -p ~/.neomutt"
+    echo "2. Store it in your OS secret store (read by bin/mail-pass):"
+    if [[ "$(uname)" == "Darwin" ]]; then
+        echo "   security add-generic-password -s fastmail-imap -a $USER_EMAIL -w"
+    else
+        echo "   secret-tool store --label=fastmail-imap service fastmail-imap"
+        echo "   # or, if you use pass:  pass insert fastmail-imap"
+    fi
     echo ""
-    echo "3. Encrypt your password with GPG:"
-    echo "   # If you don't have a GPG key, generate one first:"
-    echo "   gpg --full-generate-key"
+    echo "3. Do the initial sync + index (first pull can be slow):"
+    echo "   mail-sync        # runs: mbsync -a && notmuch new"
     echo ""
-    echo "   # Encrypt your app password:"
-    echo "   echo 'YOUR_APP_PASSWORD' | gpg --encrypt -r $USER_EMAIL -o ~/.neomutt/fastmail_pass.gpg"
-    echo ""
-    echo "   # Verify it works:"
-    echo "   gpg --quiet --decrypt ~/.neomutt/fastmail_pass.gpg"
-    echo ""
-    echo "4. Your identity has been written to ~/.neomutt/local.rc:"
-    echo "   set imap_user = '$USER_EMAIL'"
-    echo "   set from = '$USER_EMAIL'"
-    echo "   set real_name = '$USER_NAME'"
-    echo "   set smtp_url = 'smtp://${USER_EMAIL}@smtp.fastmail.com:587/'"
+    echo "4. Launch neomutt (the 'mutt' wrapper syncs first, then opens neomutt)."
+    echo "   Identity was written to ~/.neomutt/local.rc; mbsync/notmuch config"
+    echo "   to ~/.mbsyncrc and ~/.notmuch-config."
     echo ""
     echo "=========================================="
 }
