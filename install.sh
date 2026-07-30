@@ -26,6 +26,20 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# curl that works on locked-down work devservers, where direct egress to
+# github is blocked. Meta routes external traffic through the forward proxy
+# (raw.githubusercontent.com is allowlisted through it), so prefer that when
+# available and fall back to a direct call for laptops / unrestricted boxes.
+proxy_curl() {
+    if command -v fwdproxy-config &>/dev/null; then
+        # fwdproxy-config emits the right -x/cert flags for this host.
+        # shellcheck disable=SC2046
+        curl $(fwdproxy-config curl 2>/dev/null) "$@" && return 0
+        curl -x fwdproxy:8080 "$@" && return 0
+    fi
+    curl "$@"
+}
+
 # Files to install (relative to dotfiles directory)
 FILES=(
     ".tmux.conf"
@@ -231,7 +245,7 @@ install_vim_plugins() {
     local plug_path="$HOME/.vim/autoload/plug.vim"
     if [[ ! -f "$plug_path" ]]; then
         info "Bootstrapping vim-plug..."
-        curl -fLo "$plug_path" --create-dirs \
+        proxy_curl -fLo "$plug_path" --create-dirs \
             https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
     fi
     info "Installing vim plugins..."
@@ -247,7 +261,7 @@ install_nvim_plugins() {
     local plug_path="$HOME/.local/share/nvim/site/autoload/plug.vim"
     if [[ ! -f "$plug_path" ]]; then
         info "Bootstrapping vim-plug for nvim..."
-        curl -fLo "$plug_path" --create-dirs \
+        proxy_curl -fLo "$plug_path" --create-dirs \
             https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
     fi
     info "Installing nvim plugins..."
