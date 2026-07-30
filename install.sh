@@ -204,6 +204,14 @@ install_via_brewfile() {
     info "Installing packages via Brewfile..."
     brew bundle install --no-upgrade --file="$DOTFILES_DIR/Brewfile"
     info "Brewfile packages installed"
+    # compiledb is the macOS bear-equivalent (bear itself is broken under SIP);
+    # it has no brew formula, so install it via pipx.
+    if command -v pipx &>/dev/null; then
+        info "Installing compiledb via pipx..."
+        pipx install compiledb || warn "compiledb install failed — run 'pipx install compiledb' manually"
+    else
+        warn "pipx not found — skipping compiledb (run 'brew install pipx && pipx install compiledb')"
+    fi
 }
 
 install_via_packagefile() {

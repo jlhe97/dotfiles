@@ -105,6 +105,20 @@ if ok_cmp then
   })
 end
 
+local function clangd_bin()
+  local exe = vim.fn.exepath('clangd')
+  if exe ~= '' then return exe end
+  local candidates = {
+    '/opt/homebrew/opt/llvm/bin/clangd',
+    '/opt/llvm/stable/Toolchains/llvm-sand.xctoolchain/usr/bin/clangd',
+    '/opt/llvm/lkg/Toolchains/llvm-sand.xctoolchain/usr/bin/clangd',
+  }
+  for _, p in ipairs(candidates) do
+    if vim.fn.executable(p) == 1 then return p end
+  end
+  return 'clangd'
+end
+
 -- Auto-start clangd for C/C++ files
 vim.api.nvim_create_autocmd("FileType", {
   pattern = {"c", "cpp"},
@@ -112,12 +126,12 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.lsp.start({
       name = "clangd",
       cmd = {
-        "clangd",
+        clangd_bin(),
         "--background-index",
         "--clang-tidy",
         "--header-insertion=iwyu",
         "--completion-style=detailed",
-        "--function-arg-placeholders",
+        "--function-arg-placeholders=1",
       },
       capabilities = capabilities,
       on_attach = on_attach,

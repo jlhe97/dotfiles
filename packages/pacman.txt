@@ -9,3 +9,5 @@ fzf
 ripgrep
 zsh
 ghostty
+clang
+bear

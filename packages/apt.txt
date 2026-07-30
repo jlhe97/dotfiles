@@ -10,3 +10,5 @@ ripgrep
 zsh
 xclip
 wl-clipboard
+clangd
+bear
