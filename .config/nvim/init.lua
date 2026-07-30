@@ -9,6 +9,7 @@ vim.call('plug#', 'hrsh7th/nvim-cmp')
 vim.call('plug#', 'hrsh7th/cmp-nvim-lsp')
 vim.call('plug#', 'hrsh7th/cmp-buffer')
 vim.call('plug#', 'rust-lang/rust.vim')
+vim.call('plug#', 'preservim/nerdtree')
 vim.call('plug#end')
 
 -- Basic settings
@@ -20,6 +21,13 @@ vim.opt.softtabstop = 8
 vim.opt.autoindent = true
 vim.opt.signcolumn = 'yes'
 vim.opt.updatetime = 300
+
+-- NERDTree file explorer
+vim.g.NERDTreeShowHidden = 1          -- show dotfiles
+vim.g.NERDTreeMinimalUI = 1           -- hide the help hint / bookmarks header
+vim.g.NERDTreeQuitOnOpen = 0          -- keep the tree open after opening a file
+vim.keymap.set('n', '<C-n>', ':NERDTreeToggle<CR>', { silent = true })   -- open/close
+vim.keymap.set('n', '<leader>n', ':NERDTreeFind<CR>', { silent = true }) -- reveal current file
 
 -- LSP settings
 local on_attach = function(client, bufnr)
