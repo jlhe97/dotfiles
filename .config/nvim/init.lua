@@ -13,6 +13,14 @@ vim.call('plug#', 'preservim/nerdtree')
 vim.call('plug#', 'junegunn/fzf')
 vim.call('plug#', 'junegunn/fzf.vim')
 vim.call('plug#', 'Mofiqul/vscode.nvim')
+vim.call('plug#', 'RRethy/vim-illuminate')
+vim.call('plug#', 'mg979/vim-visual-multi')
+
+-- vim-visual-multi: Ctrl+D selects the next occurrence (Ctrl+N is taken by NERDTree)
+vim.g.VM_maps = {
+  ['Find Under'] = '<C-d>',
+  ['Find Subword Under'] = '<C-d>',
+}
 vim.call('plug#end')
 
 -- Basic settings
@@ -29,6 +37,14 @@ vim.opt.updatetime = 300
 vim.opt.termguicolors = true
 vim.o.background = 'dark'
 pcall(vim.cmd.colorscheme, 'vscode')
+
+-- Auto-highlight other uses of the word under the cursor (VSCode-style)
+pcall(function()
+  require('illuminate').configure({
+    providers = { 'lsp', 'treesitter', 'regex' },
+    delay = 100,
+  })
+end)
 
 -- NERDTree file explorer
 vim.g.NERDTreeShowHidden = 1          -- show dotfiles
