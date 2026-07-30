@@ -5,5 +5,7 @@ isync
 notmuch
 keyutils
 b4
+fzf
+ripgrep
 zsh
 ghostty

@@ -5,6 +5,8 @@ isync
 notmuch
 keyutils
 b4
+fzf
+ripgrep
 zsh
 xclip
 wl-clipboard

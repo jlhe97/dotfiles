@@ -16,7 +16,7 @@ Personal configuration files, managed with symlinks.
 
 - `.zshrc` — zsh configuration
 - `.neomuttrc` — neomutt config (local notmuch mail via mbsync) with patch syntax highlighting, sidebar, and vim keybindings
-- `.config/nvim/init.lua` — neovim config with LSP (clangd, rust-analyzer) and nvim-cmp
+- `.config/nvim/init.lua` — neovim config with LSP (clangd, rust-analyzer), nvim-cmp, NERDTree, and fzf
 - `.tmux.conf` — tmux configuration with cross-platform clipboard (pbcopy / wl-copy / xclip)
 - `.vimrc` / `.vimrc.plug` — vim configuration
 - `bin/` — helper scripts: `mail-sync` (mbsync + notmuch), `mail-pass` (per-OS password lookup), `mail-timer` (install a periodic-sync launchd/systemd timer), `mutt` (sync-then-neomutt wrapper), `lei-sync` (kernel mailing-list sync)

@@ -10,6 +10,8 @@ vim.call('plug#', 'hrsh7th/cmp-nvim-lsp')
 vim.call('plug#', 'hrsh7th/cmp-buffer')
 vim.call('plug#', 'rust-lang/rust.vim')
 vim.call('plug#', 'preservim/nerdtree')
+vim.call('plug#', 'junegunn/fzf')
+vim.call('plug#', 'junegunn/fzf.vim')
 vim.call('plug#end')
 
 -- Basic settings
@@ -28,6 +30,11 @@ vim.g.NERDTreeMinimalUI = 1           -- hide the help hint / bookmarks header
 vim.g.NERDTreeQuitOnOpen = 0          -- keep the tree open after opening a file
 vim.keymap.set('n', '<C-n>', ':NERDTreeToggle<CR>', { silent = true })   -- open/close
 vim.keymap.set('n', '<leader>n', ':NERDTreeFind<CR>', { silent = true }) -- reveal current file
+
+-- fzf fuzzy finder (needs system fzf + ripgrep, installed via packages)
+vim.keymap.set('n', '<C-p>', ':Files<CR>', { silent = true })        -- fuzzy file names
+vim.keymap.set('n', '<leader>fg', ':Rg<CR>', { silent = true })      -- grep file contents
+vim.keymap.set('n', '<leader>fb', ':Buffers<CR>', { silent = true }) -- open buffers
 
 -- LSP settings
 local on_attach = function(client, bufnr)
