@@ -7,7 +7,8 @@ brew "sapling"
 brew "b4"
 brew "fzf"
 brew "ripgrep"
-brew "llvm"
+brew "llvm"            # clangd, clang-tidy, clang-format
+brew "bear"            # compile_commands.json for Make-based C/C++ projects
 brew "pipx"
 brew "zsh"
 # Rust: `rust` bundles cargo/clippy/rustfmt + std source; rust-analyzer separate

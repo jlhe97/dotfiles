@@ -31,6 +31,7 @@ TARGETS=(
     "$HOME/.vimrc"
     "$HOME/.vimrc.plug"
     "$HOME/.config/nvim"
+    "$HOME/.config/clangd"
     "$HOME/.zshrc"
     "$HOME/.neomuttrc"
     "$HOME/.slconfig"

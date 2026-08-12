@@ -59,6 +59,7 @@ FILES=(
 # Directories to install (relative to dotfiles directory)
 DIRS=(
     ".config/nvim"
+    ".config/clangd"
     ".claude/skills"
     "bin"
 )

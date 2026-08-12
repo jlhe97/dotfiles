@@ -91,6 +91,11 @@ fi
 # Compilation flags
 # export ARCHFLAGS="-arch $(uname -m)"
 
+# C/C++: make every CMake build emit compile_commands.json so clangd works
+# out of the box (the Cargo-style "just works" experience). For Make projects
+# use `bear -- make`; for the kernel use `make compile_commands.json`.
+export CMAKE_EXPORT_COMPILE_COMMANDS=ON
+
 # Set personal aliases, overriding those provided by Oh My Zsh libs,
 # plugins, and themes. Aliases can be placed here, though Oh My Zsh
 # users are encouraged to define aliases within a top-level file in

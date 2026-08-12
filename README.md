@@ -16,7 +16,8 @@ Personal configuration files, managed with symlinks.
 
 - `.zshrc` — zsh configuration
 - `.neomuttrc` — neomutt config (local notmuch mail via mbsync) with patch syntax highlighting, sidebar, and vim keybindings
-- `.config/nvim/init.lua` — neovim config with LSP (clangd, rust-analyzer), nvim-cmp, NERDTree, and fzf
+- `.config/nvim/init.lua` — neovim config with LSP (clangd, rust-analyzer), nvim-cmp + vsnip snippets, NERDTree, and fzf
+- `.config/clangd/config.yaml` — global clangd config: kernel GCC-flag handling, clang-tidy checks, inlay hints (used by any LSP editor, not just nvim)
 - `.tmux.conf` — tmux configuration with cross-platform clipboard (pbcopy / wl-copy / xclip)
 - `.vimrc` / `.vimrc.plug` — vim configuration
 - `bin/` — helper scripts: `mail-sync` (mbsync + notmuch), `mail-pass` (per-OS password lookup), `mail-timer` (install a periodic-sync launchd/systemd timer), `mutt` (sync-then-neomutt wrapper), `lei-sync` (kernel mailing-list sync)
@@ -37,6 +38,29 @@ identity actually changes.
 ./uninstall.sh                  # remove symlinks (prompts about packages)
 ./uninstall.sh --skip-packages  # remove symlinks only, no prompt
 ```
+
+## C/C++ & kernel development
+
+Rust "just works" because Cargo hands the LSP everything. C/C++ has no such
+manifest, so clangd needs a `compile_commands.json` per project. Generate it
+once and clangd (in nvim or any editor) gets accurate includes, flags, and
+cross-file navigation:
+
+| Project type | How to generate `compile_commands.json` |
+|--------------|------------------------------------------|
+| CMake        | Automatic — `.zshrc` exports `CMAKE_EXPORT_COMPILE_COMMANDS=ON`, so it lands in your build dir. Symlink it to the project root once: `ln -s build/compile_commands.json .` |
+| Make         | `bear -- make` (bear intercepts the compiler invocations) |
+| Linux kernel | `make compile_commands.json` after building (wraps `scripts/clang-tools/gen_compile_commands.py`) |
+
+The kernel's compile DB carries GCC-only flags clang rejects;
+`.config/clangd/config.yaml` strips them globally, so kernel trees index
+cleanly with no per-tree `.clangd` needed. clang-tidy (bugprone/performance/
+portability checks) runs as the C/C++ analog to clippy.
+
+Tooling is installed per platform via the package lists / Brewfile: `clangd`,
+`clang-tidy`, `clang-format`, and `bear`. On the Fedora devvm clangd comes from
+the Meta `llvm-sand` toolchain, which `init.lua`'s `clangd_bin()` resolver finds
+automatically.
 
 ## Testing
 

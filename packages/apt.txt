@@ -11,6 +11,8 @@ zsh
 xclip
 wl-clipboard
 clangd
+clang-tidy
+clang-format
 bear
 # Rust toolchain (consistent set from apt). NOTE: Debian/Ubuntu apt has NO
 # rust-analyzer or clippy package — install rust-analyzer via rustup

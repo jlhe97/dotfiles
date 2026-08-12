@@ -1,0 +1,51 @@
+# Global clangd config — applies to every project, every editor that speaks LSP.
+# Managed by dotfiles (symlinked to ~/.config/clangd/config.yaml).
+# See README "C/C++ & kernel development" for the compile_commands.json workflow.
+
+CompileFlags:
+  # Let kernel trees (built with GCC) index cleanly under clang.
+  Add:
+    - -Wno-unknown-warning-option
+    - -Wno-unknown-attributes
+  # Strip GCC/kernel-only flags clang rejects. These never appear in normal
+  # user projects, so removing them globally is safe and only helps kernel trees.
+  Remove:
+    - -mpreferred-stack-boundary=*
+    - -mno-fp-ret-in-387
+    - -mskip-rax-setup
+    - -mindirect-branch=*
+    - -mindirect-branch-register
+    - -mindirect-branch-cs-prefix
+    - -mrecord-mcount
+    - -mfentry
+    - -mfunction-return=*
+    - -mharden-sls=*
+    - -mstack-protector-guard*
+    - -fconserve-stack
+    - -fno-allow-store-data-races
+    - -fmin-function-alignment=*
+    - -fno-var-tracking-assignments
+    - -femit-struct-debug-baseonly
+    - --param=*
+
+Diagnostics:
+  # High-signal clang-tidy checks (clang-analyzer-* is on by default). Kept
+  # conservative so it's useful for both kernel C and personal C/C++.
+  ClangTidy:
+    Add:
+      - bugprone-*
+      - performance-*
+      - portability-*
+    Remove:
+      - bugprone-easily-swappable-parameters
+
+InlayHints:
+  Enabled: true
+  ParameterNames: true
+  DeducedTypes: true
+
+Index:
+  Background: Build
+
+Hover:
+  ShowAKA: true
