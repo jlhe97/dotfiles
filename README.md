@@ -22,6 +22,14 @@ Personal configuration files, managed with symlinks.
 - `.vimrc` / `.vimrc.plug` — vim configuration
 - `bin/` — helper scripts: `mail-sync` (mbsync + notmuch), `mail-pass` (per-OS password lookup), `mail-timer` (install a periodic-sync launchd/systemd timer), `mutt` (sync-then-neomutt wrapper), `lei-sync` (kernel mailing-list sync), `kernel-ccdb` (regenerate a kernel tree's `compile_commands.json`)
 
+Two of these read machine-local settings that are deliberately not in this
+repo, so nothing work-specific is published: `lei-sync` sources
+`~/.lei-sync.local` (`LEI_PROXY`, `LEI_MAIL_DIR`, `LEI_MY_ADDRESS`,
+`LEI_NETDEV_FILTERS`) and skips a folder with a hint if the relevant variable
+is unset; the nvim config loads `~/.config/nvim-local/init.lua`. Both files
+have to be recreated per machine, or synced by whatever mechanism you use for
+private config.
+
 ## Setup
 
 ```sh

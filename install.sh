@@ -26,10 +26,11 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# curl that works on locked-down work devservers, where direct egress to
-# github is blocked. Meta routes external traffic through the forward proxy
-# (raw.githubusercontent.com is allowlisted through it), so prefer that when
-# available and fall back to a direct call for laptops / unrestricted boxes.
+# curl that works on locked-down work machines, where direct egress to github
+# is blocked and external traffic goes through a forward proxy (with
+# raw.githubusercontent.com allowlisted through it). Prefer the proxy when the
+# host ships a config helper for it, and fall back to a direct call for
+# laptops / unrestricted boxes.
 proxy_curl() {
     if command -v fwdproxy-config &>/dev/null; then
         # fwdproxy-config emits the right -x/cert flags for this host.
