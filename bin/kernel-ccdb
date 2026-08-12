@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Regenerate compile_commands.json for the Linux kernel tree containing the
+# given path (or $PWD), so clangd has an accurate compile database.
+#
+# Requires the tree to have been built at least partially: the kernel's
+# `compile_commands.json` target scans the .*.cmd files the build leaves behind.
+#
+# Usage: kernel-ccdb [path-inside-a-kernel-tree]
+set -euo pipefail
+
+dir="$(cd "${1:-$PWD}" && pwd)"
+while [[ "$dir" != "/" ]]; do
+    if [[ -f "$dir/Kbuild" && -f "$dir/Kconfig" && -f "$dir/MAINTAINERS" ]]; then
+        echo "kernel tree: $dir"
+        make -C "$dir" compile_commands.json
+        echo "wrote $dir/compile_commands.json — restart clangd to pick it up"
+        exit 0
+    fi
+    dir="$(dirname "$dir")"
+done
+
+echo "error: not inside a Linux kernel tree (no Kbuild+Kconfig+MAINTAINERS found)" >&2
+exit 1

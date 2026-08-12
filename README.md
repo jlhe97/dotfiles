@@ -20,7 +20,7 @@ Personal configuration files, managed with symlinks.
 - `.config/clangd/config.yaml` — global clangd config: kernel GCC-flag handling, clang-tidy checks, inlay hints (used by any LSP editor, not just nvim)
 - `.tmux.conf` — tmux configuration with cross-platform clipboard (pbcopy / wl-copy / xclip)
 - `.vimrc` / `.vimrc.plug` — vim configuration
-- `bin/` — helper scripts: `mail-sync` (mbsync + notmuch), `mail-pass` (per-OS password lookup), `mail-timer` (install a periodic-sync launchd/systemd timer), `mutt` (sync-then-neomutt wrapper), `lei-sync` (kernel mailing-list sync)
+- `bin/` — helper scripts: `mail-sync` (mbsync + notmuch), `mail-pass` (per-OS password lookup), `mail-timer` (install a periodic-sync launchd/systemd timer), `mutt` (sync-then-neomutt wrapper), `lei-sync` (kernel mailing-list sync), `kernel-ccdb` (regenerate a kernel tree's `compile_commands.json`)
 
 ## Setup
 
@@ -56,6 +56,18 @@ The kernel's compile DB carries GCC-only flags clang rejects;
 `.config/clangd/config.yaml` strips them globally, so kernel trees index
 cleanly with no per-tree `.clangd` needed. clang-tidy (bugprone/performance/
 portability checks) runs as the C/C++ analog to clippy.
+
+The nvim config tailors itself when it detects a kernel tree (`Kbuild` +
+`Kconfig` + `MAINTAINERS` at the root):
+
+- clangd starts with `--header-insertion=never` (kernel include rules aren't
+  IWYU, so auto-include suggestions are usually wrong there); personal projects
+  keep IWYU. clangd is also rooted at the tree so it finds `compile_commands.json`.
+- `<leader>f` formats via the LSP — in a kernel file that means the in-tree
+  `.clang-format` (kernel style); visual-mode `<leader>f` formats only the
+  selection, so you don't reformat code you didn't touch.
+- `:KernelCCDB` (or `bin/kernel-ccdb` from the shell) runs
+  `make compile_commands.json` for the current tree; `:LspRestart` to pick it up.
 
 Tooling is installed per platform via the package lists / Brewfile: `clangd`,
 `clang-tidy`, `clang-format`, and `bear`. On the Fedora devvm clangd comes from

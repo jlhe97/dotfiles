@@ -71,6 +71,21 @@ local on_attach = function(client, bufnr)
   vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
   vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
   vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
+
+  -- <leader>f: format via the LSP (clangd uses the tree's .clang-format, so
+  -- kernel files format to kernel style; rust-analyzer uses rustfmt).
+  -- Normal mode formats the buffer; visual mode formats just the selection
+  -- (important for kernel patches — don't reformat code you didn't touch).
+  vim.keymap.set('n', '<leader>f', function() vim.lsp.buf.format({ async = true }) end, opts)
+  vim.keymap.set('x', '<leader>f', function()
+    local s = vim.api.nvim_buf_get_mark(0, '<')
+    local e = vim.api.nvim_buf_get_mark(0, '>')
+    local ok = pcall(vim.lsp.buf.format, {
+      async = true,
+      range = { ['start'] = { s[1], 0 }, ['end'] = { e[1], 0 } },
+    })
+    if not ok then vim.lsp.buf.format({ async = true }) end
+  end, opts)
 end
 
 local ok_lsp, cmp_nvim_lsp = pcall(require, 'cmp_nvim_lsp')
@@ -172,22 +187,68 @@ local function clangd_bin()
   return 'clangd'
 end
 
+-- Detect the Linux kernel tree containing `start` (defaults to the current
+-- file's dir). Returns the tree root, or nil. Kbuild+MAINTAINERS at the same
+-- dir is a strong kernel-tree signal that other C projects won't trip.
+local function kernel_root(start)
+  start = start or vim.fn.expand("%:p:h")
+  if start == "" then start = vim.fn.getcwd() end
+  local m = vim.fs.find("MAINTAINERS", { upward = true, path = start })[1]
+  if not m then return nil end
+  local root = vim.fs.dirname(m)
+  if vim.fn.filereadable(root .. "/Kbuild") == 1
+    and vim.fn.filereadable(root .. "/Kconfig") == 1 then
+    return root
+  end
+  return nil
+end
+
 -- Auto-start clangd for C/C++ files
 vim.api.nvim_create_autocmd("FileType", {
   pattern = {"c", "cpp"},
   callback = function()
+    local kroot = kernel_root()
+    -- Root at the kernel tree (where compile_commands.json lives); otherwise
+    -- anchor to the nearest compile DB / .clangd / git root.
+    local root = kroot
+    if not root then
+      local marker = vim.fs.find({ "compile_commands.json", ".clangd", ".git" },
+        { upward = true, path = vim.fn.expand("%:p:h") })[1]
+      if marker then root = vim.fs.dirname(marker) end
+    end
     vim.lsp.start({
       name = "clangd",
       cmd = {
         clangd_bin(),
         "--background-index",
         "--clang-tidy",
-        "--header-insertion=iwyu",
+        -- In kernel trees IWYU auto-include suggestions are usually wrong
+        -- (kernel include rules aren't IWYU); disable there, keep elsewhere.
+        "--header-insertion=" .. (kroot and "never" or "iwyu"),
         "--completion-style=detailed",
         "--function-arg-placeholders=1",
       },
+      root_dir = root,
       capabilities = capabilities,
       on_attach = on_attach,
     })
   end,
 })
+
+-- :KernelCCDB — (re)generate compile_commands.json for the current kernel tree
+-- so clangd has an accurate compile database. Requires the tree to be built
+-- (the target scans the .cmd files make leaves behind). Run :LspRestart after.
+vim.api.nvim_create_user_command("KernelCCDB", function()
+  local root = kernel_root()
+  if not root then
+    vim.notify("KernelCCDB: not inside a Linux kernel tree", vim.log.levels.ERROR)
+    return
+  end
+  vim.notify("KernelCCDB: make compile_commands.json in " .. root .. " ...")
+  local out = vim.fn.system({ "make", "-C", root, "compile_commands.json" })
+  if vim.v.shell_error ~= 0 then
+    vim.notify("KernelCCDB failed:\n" .. out, vim.log.levels.ERROR)
+  else
+    vim.notify("KernelCCDB: done — run :LspRestart to pick up the new DB")
+  end
+end, { desc = "Regenerate the kernel compile_commands.json" })
