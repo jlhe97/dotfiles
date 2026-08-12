@@ -94,7 +94,7 @@ local capabilities = ok_lsp
   or vim.lsp.protocol.make_client_capabilities()
 
 -- Locate rust-analyzer across platforms:
---   PATH (dnf on the Fedora devvm, or anything already exported)
+--   PATH (a distro package, or anything already exported)
 --   ~/.cargo/bin (rustup: `rustup component add rust-analyzer`) on macOS/Ubuntu
 --   Homebrew prefixes on macOS
 local function rust_analyzer_bin()
@@ -111,17 +111,46 @@ local function rust_analyzer_bin()
   return 'rust-analyzer'
 end
 
+-- Extra Rust project detectors, registered by the machine-local config loaded
+-- at the bottom of this file (same idea as cpp_project_detectors). Each is
+-- called with the current file's directory and returns nil, or:
+--   { root = <dir>, cmd = {...}, cmd_cwd = <dir>, settings = {...} }
+-- First match wins; plain Cargo detection below is the fallback. Build systems
+-- that aren't Cargo need a different server invocation entirely, which is why
+-- detectors get to supply cmd and settings and not just a root.
+_G.rust_project_detectors = {}
+
 -- Auto-start rust-analyzer for Rust files
 vim.api.nvim_create_autocmd("FileType", {
   pattern = {"rust"},
   callback = function()
+    local dir = vim.fn.expand("%:p:h")
+    if dir == "" then dir = vim.fn.getcwd() end
+
+    local proj
+    for _, detect in ipairs(_G.rust_project_detectors) do
+      proj = detect(dir)
+      if proj then break end
+    end
+
+    local root = proj and proj.root
+    if not root then
+      -- Search upward from the FILE, not from nvim's cwd: `nvim some/crate/src/x.rs`
+      -- run from anywhere else must still find the manifest. (vim.fs.find defaults
+      -- `path` to the cwd, which silently yields a nil root and leaves
+      -- rust-analyzer reporting "failed to discover workspace".)
+      local manifest = vim.fs.find("Cargo.toml", { upward = true, path = dir })[1]
+      if manifest then root = vim.fs.dirname(manifest) end
+    end
+
     vim.lsp.start({
       name = "rust_analyzer",
-      cmd = {rust_analyzer_bin()},
-      root_dir = vim.fs.dirname(vim.fs.find("Cargo.toml", { upward = true })[1]),
+      cmd = (proj and proj.cmd) or { rust_analyzer_bin() },
+      cmd_cwd = proj and proj.cmd_cwd or nil,
+      root_dir = root,
       capabilities = capabilities,
       on_attach = on_attach,
-      settings = {
+      settings = (proj and proj.settings) or {
         ["rust-analyzer"] = {
           checkOnSave = true,
           check = { command = "clippy" },
@@ -173,6 +202,15 @@ if ok_cmp then
   })
 end
 
+-- Extra C/C++ project detectors, registered by the machine-local config loaded
+-- at the bottom of this file. Each is called with the current file's directory
+-- and returns nil, or:
+--   { root = <dir>, bin = <clangd path>, header_insertion = "iwyu"|"never" }
+-- First match wins; the built-in detection below runs when none match. This is
+-- the seam that keeps site-specific monorepo and toolchain knowledge out of
+-- this repo.
+_G.cpp_project_detectors = {}
+
 local function clangd_bin()
   local exe = vim.fn.exepath('clangd')
   if exe ~= '' then return exe end
@@ -208,9 +246,20 @@ vim.api.nvim_create_autocmd("FileType", {
   pattern = {"c", "cpp"},
   callback = function()
     local kroot = kernel_root()
-    -- Root at the kernel tree (where compile_commands.json lives); otherwise
-    -- anchor to the nearest compile DB / .clangd / git root.
-    local root = kroot
+    local proj
+    if not kroot then
+      local dir = vim.fn.expand("%:p:h")
+      for _, detect in ipairs(_G.cpp_project_detectors) do
+        proj = detect(dir)
+        if proj then break end
+      end
+    end
+    -- Root at the kernel tree, or wherever a registered detector says the
+    -- project starts (both are where compile_commands.json lives); otherwise
+    -- anchor to the nearest compile DB / .clangd / git root. Detectors take
+    -- precedence because a monorepo's nearest .clangd can sit well below its
+    -- compile DB, which would root clangd in the wrong place.
+    local root = kroot or (proj and proj.root)
     if not root then
       local marker = vim.fs.find({ "compile_commands.json", ".clangd", ".git" },
         { upward = true, path = vim.fn.expand("%:p:h") })[1]
@@ -219,12 +268,13 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.lsp.start({
       name = "clangd",
       cmd = {
-        clangd_bin(),
+        (proj and proj.bin) or clangd_bin(),
         "--background-index",
         "--clang-tidy",
         -- In kernel trees IWYU auto-include suggestions are usually wrong
         -- (kernel include rules aren't IWYU); disable there, keep elsewhere.
-        "--header-insertion=" .. (kroot and "never" or "iwyu"),
+        "--header-insertion=" ..
+          (kroot and "never" or (proj and proj.header_insertion) or "iwyu"),
         "--completion-style=detailed",
         "--function-arg-placeholders=1",
       },
@@ -252,3 +302,15 @@ vim.api.nvim_create_user_command("KernelCCDB", function()
     vim.notify("KernelCCDB: done — run :LspRestart to pick up the new DB")
   end
 end, { desc = "Regenerate the kernel compile_commands.json" })
+
+-- Machine-local config, loaded last so it can override anything above and
+-- register cpp_project_detectors. Deliberately outside this repo (and outside
+-- ~/.config/nvim, which is a symlink into it) so work machines can add private
+-- toolchain and monorepo settings that must never be published here.
+local local_init = vim.fn.expand("~/.config/nvim-local/init.lua")
+if vim.fn.filereadable(local_init) == 1 then
+  local ok, err = pcall(dofile, local_init)
+  if not ok then
+    vim.notify("nvim-local/init.lua failed:\n" .. tostring(err), vim.log.levels.ERROR)
+  end
+end
