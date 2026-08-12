@@ -5,15 +5,33 @@
 # Requires the tree to have been built at least partially: the kernel's
 # `compile_commands.json` target scans the .*.cmd files the build leaves behind.
 #
-# Usage: kernel-ccdb [path-inside-a-kernel-tree]
+# For an O= build pass the objdir (or export KERNEL_OBJDIR): that is where the
+# .cmd files are, so the database is generated there and then linked into the
+# source root, which is where clangd looks for it.
+#
+# Usage: kernel-ccdb [path-inside-a-kernel-tree] [objdir]
 set -euo pipefail
 
 dir="$(cd "${1:-$PWD}" && pwd)"
+objdir="${2:-${KERNEL_OBJDIR:-}}"
+[[ -n "$objdir" ]] && objdir="$(cd "$objdir" && pwd)"
+
 while [[ "$dir" != "/" ]]; do
     if [[ -f "$dir/Kbuild" && -f "$dir/Kconfig" && -f "$dir/MAINTAINERS" ]]; then
         echo "kernel tree: $dir"
-        make -C "$dir" compile_commands.json
-        echo "wrote $dir/compile_commands.json — restart clangd to pick it up"
+        if [[ -n "$objdir" ]]; then
+            make -C "$dir" O="$objdir" compile_commands.json
+            # Link rather than copy so regenerating in the objdir is picked up
+            # without re-running this.
+            if [[ "$(readlink -f "$dir/compile_commands.json" 2>/dev/null || true)" \
+                  != "$objdir/compile_commands.json" ]]; then
+                ln -sf "$objdir/compile_commands.json" "$dir/compile_commands.json"
+            fi
+            echo "wrote $objdir/compile_commands.json (linked into $dir) — restart clangd to pick it up"
+        else
+            make -C "$dir" compile_commands.json
+            echo "wrote $dir/compile_commands.json — restart clangd to pick it up"
+        fi
         exit 0
     fi
     dir="$(dirname "$dir")"

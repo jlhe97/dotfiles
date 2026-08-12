@@ -241,11 +241,30 @@ local function kernel_root(start)
   return nil
 end
 
+-- clangd's --background-index writes .cache/clangd/ under the project root, and
+-- the kernel's tracked .gitignore doesn't cover it. Exclude it per-clone in
+-- .git/info/exclude, which is never committed, so `git status` stays readable.
+local excluded = {}
+local function exclude_clangd_cache(root)
+  if not root or excluded[root] then return end
+  excluded[root] = true
+  local info = root .. "/.git/info"
+  if vim.fn.isdirectory(info) == 0 then return end   -- not a plain git clone
+  local path = info .. "/exclude"
+  local lines = vim.fn.filereadable(path) == 1 and vim.fn.readfile(path) or {}
+  for _, l in ipairs(lines) do
+    if l == ".cache/" then return end
+  end
+  table.insert(lines, ".cache/")
+  pcall(vim.fn.writefile, lines, path)
+end
+
 -- Auto-start clangd for C/C++ files
 vim.api.nvim_create_autocmd("FileType", {
   pattern = {"c", "cpp"},
   callback = function()
     local kroot = kernel_root()
+    exclude_clangd_cache(kroot)
     local proj
     if not kroot then
       local dir = vim.fn.expand("%:p:h")
@@ -285,23 +304,50 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
--- :KernelCCDB — (re)generate compile_commands.json for the current kernel tree
--- so clangd has an accurate compile database. Requires the tree to be built
--- (the target scans the .cmd files make leaves behind). Run :LspRestart after.
-vim.api.nvim_create_user_command("KernelCCDB", function()
+-- :KernelCCDB [objdir] — (re)generate compile_commands.json for the current
+-- kernel tree so clangd has an accurate compile database. Requires the tree to
+-- be built (the target scans the .cmd files make leaves behind).
+--
+-- For an O= build, pass the objdir (or set vim.g.kernel_objdir once): the .cmd
+-- files live there, so the database is generated there too and then linked into
+-- the source root, which is where clangd looks. Run :LspRestart after.
+vim.api.nvim_create_user_command("KernelCCDB", function(opts)
   local root = kernel_root()
   if not root then
     vim.notify("KernelCCDB: not inside a Linux kernel tree", vim.log.levels.ERROR)
     return
   end
-  vim.notify("KernelCCDB: make compile_commands.json in " .. root .. " ...")
-  local out = vim.fn.system({ "make", "-C", root, "compile_commands.json" })
+  local objdir = opts.args ~= "" and vim.fn.fnamemodify(opts.args, ":p:h")
+    or vim.g.kernel_objdir
+  local cmd = { "make", "-C", root }
+  if objdir then table.insert(cmd, "O=" .. objdir) end
+  table.insert(cmd, "compile_commands.json")
+
+  vim.notify("KernelCCDB: make compile_commands.json in " .. (objdir or root) .. " ...")
+  local out = vim.fn.system(cmd)
   if vim.v.shell_error ~= 0 then
     vim.notify("KernelCCDB failed:\n" .. out, vim.log.levels.ERROR)
-  else
-    vim.notify("KernelCCDB: done — run :LspRestart to pick up the new DB")
+    return
   end
-end, { desc = "Regenerate the kernel compile_commands.json" })
+
+  if objdir then
+    -- clangd searches upward from the source file, so the DB has to be
+    -- reachable from the source root. Link rather than copy so a later
+    -- regeneration in the objdir is picked up without re-running this.
+    local link = root .. "/compile_commands.json"
+    local target = objdir .. "/compile_commands.json"
+    if vim.fn.resolve(link) ~= target then
+      vim.fn.delete(link)
+      vim.fn.system({ "ln", "-s", target, link })
+      if vim.v.shell_error ~= 0 then
+        vim.notify("KernelCCDB: generated " .. target ..
+          " but could not link it into " .. root, vim.log.levels.WARN)
+        return
+      end
+    end
+  end
+  vim.notify("KernelCCDB: done — run :LspRestart to pick up the new DB")
+end, { nargs = "?", complete = "dir", desc = "Regenerate the kernel compile_commands.json" })
 
 -- Machine-local config, loaded last so it can override anything above and
 -- register cpp_project_detectors. Deliberately outside this repo (and outside
