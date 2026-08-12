@@ -11,3 +11,6 @@ zsh
 ghostty
 clang
 bear
+# Rust: `rust` bundles cargo/clippy/rustfmt + std source; rust-analyzer separate
+rust
+rust-analyzer

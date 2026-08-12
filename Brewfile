@@ -10,4 +10,7 @@ brew "ripgrep"
 brew "llvm"
 brew "pipx"
 brew "zsh"
+# Rust: `rust` bundles cargo/clippy/rustfmt + std source; rust-analyzer separate
+brew "rust"
+brew "rust-analyzer"
 cask "ghostty"

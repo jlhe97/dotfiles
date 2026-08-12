@@ -12,3 +12,9 @@ xclip
 wl-clipboard
 clang-tools-extra
 bear
+# Rust: toolchain + rust-analyzer LSP (rustup.rs is network-blocked on the devvm)
+rust
+cargo
+rust-analyzer
+rust-src
+clippy

@@ -12,3 +12,9 @@ xclip
 wl-clipboard
 clangd
 bear
+# Rust toolchain (consistent set from apt). NOTE: Debian/Ubuntu apt has NO
+# rust-analyzer or clippy package — install rust-analyzer via rustup
+# (`rustup component add rust-analyzer clippy`) or the GitHub release binary.
+rustc
+cargo
+rust-src

@@ -8,6 +8,8 @@ vim.call('plug#begin', vim.fn.stdpath('data') .. '/plugged')
 vim.call('plug#', 'hrsh7th/nvim-cmp')
 vim.call('plug#', 'hrsh7th/cmp-nvim-lsp')
 vim.call('plug#', 'hrsh7th/cmp-buffer')
+vim.call('plug#', 'hrsh7th/vim-vsnip')      -- snippet engine (nvim 0.8 has no built-in vim.snippet)
+vim.call('plug#', 'hrsh7th/cmp-vsnip')      -- vsnip source for nvim-cmp
 vim.call('plug#', 'rust-lang/rust.vim')
 vim.call('plug#', 'preservim/nerdtree')
 vim.call('plug#', 'junegunn/fzf')
@@ -76,19 +78,38 @@ local capabilities = ok_lsp
   and cmp_nvim_lsp.default_capabilities()
   or vim.lsp.protocol.make_client_capabilities()
 
+-- Locate rust-analyzer across platforms:
+--   PATH (dnf on the Fedora devvm, or anything already exported)
+--   ~/.cargo/bin (rustup: `rustup component add rust-analyzer`) on macOS/Ubuntu
+--   Homebrew prefixes on macOS
+local function rust_analyzer_bin()
+  local exe = vim.fn.exepath('rust-analyzer')
+  if exe ~= '' then return exe end
+  local candidates = {
+    vim.fn.expand('~/.cargo/bin/rust-analyzer'),
+    '/opt/homebrew/bin/rust-analyzer',   -- Apple Silicon Homebrew
+    '/usr/local/bin/rust-analyzer',      -- Intel Homebrew
+  }
+  for _, p in ipairs(candidates) do
+    if vim.fn.executable(p) == 1 then return p end
+  end
+  return 'rust-analyzer'
+end
+
 -- Auto-start rust-analyzer for Rust files
 vim.api.nvim_create_autocmd("FileType", {
   pattern = {"rust"},
   callback = function()
     vim.lsp.start({
       name = "rust_analyzer",
-      cmd = {"rust-analyzer"},
+      cmd = {rust_analyzer_bin()},
       root_dir = vim.fs.dirname(vim.fs.find("Cargo.toml", { upward = true })[1]),
       capabilities = capabilities,
       on_attach = on_attach,
       settings = {
         ["rust-analyzer"] = {
-          checkOnSave = { command = "clippy" },
+          checkOnSave = true,
+          check = { command = "clippy" },
         },
       },
     })
@@ -99,6 +120,11 @@ vim.api.nvim_create_autocmd("FileType", {
 local ok_cmp, cmp = pcall(require, 'cmp')
 if ok_cmp then
   cmp.setup({
+    snippet = {
+      expand = function(args)
+        vim.fn['vsnip#anonymous'](args.body)
+      end,
+    },
     mapping = cmp.mapping.preset.insert({
       ['<C-b>'] = cmp.mapping.scroll_docs(-4),
       ['<C-f>'] = cmp.mapping.scroll_docs(4),
@@ -108,6 +134,8 @@ if ok_cmp then
       ['<Tab>'] = cmp.mapping(function(fallback)
         if cmp.visible() then
           cmp.select_next_item()
+        elseif vim.fn['vsnip#jumpable'](1) == 1 then
+          vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<Plug>(vsnip-jump-next)', true, true, true), '')
         else
           fallback()
         end
@@ -115,6 +143,8 @@ if ok_cmp then
       ['<S-Tab>'] = cmp.mapping(function(fallback)
         if cmp.visible() then
           cmp.select_prev_item()
+        elseif vim.fn['vsnip#jumpable'](-1) == 1 then
+          vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<Plug>(vsnip-jump-prev)', true, true, true), '')
         else
           fallback()
         end
@@ -122,6 +152,7 @@ if ok_cmp then
     }),
     sources = cmp.config.sources({
       { name = 'nvim_lsp' },
+      { name = 'vsnip' },
       { name = 'buffer' },
     })
   })
