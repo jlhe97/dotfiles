@@ -211,14 +211,16 @@ end
 -- this repo.
 _G.cpp_project_detectors = {}
 
+-- Absolute clangd paths to try when none is on PATH, appended by the
+-- machine-local config. Unlike a detector this applies to every project type,
+-- including kernel trees, which never reach the detectors.
+_G.clangd_extra_candidates = {}
+
 local function clangd_bin()
   local exe = vim.fn.exepath('clangd')
   if exe ~= '' then return exe end
-  local candidates = {
-    '/opt/homebrew/opt/llvm/bin/clangd',
-    '/opt/llvm/stable/Toolchains/llvm-sand.xctoolchain/usr/bin/clangd',
-    '/opt/llvm/lkg/Toolchains/llvm-sand.xctoolchain/usr/bin/clangd',
-  }
+  local candidates = { '/opt/homebrew/opt/llvm/bin/clangd' }
+  vim.list_extend(candidates, _G.clangd_extra_candidates)
   for _, p in ipairs(candidates) do
     if vim.fn.executable(p) == 1 then return p end
   end
