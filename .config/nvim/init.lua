@@ -1,5 +1,18 @@
 -- Minimal Neovim config for C/C++ development with LSP
 
+-- Minimum supported Neovim. Everything below leans on APIs that landed in 0.8
+-- -- vim.lsp.start, vim.fs.find, and the callable vim.cmd -- so on an older
+-- build the config dies partway through at whichever one it reaches first, with
+-- a traceback that says nothing about the real cause: Ubuntu 22.04 ships 0.6,
+-- where it surfaces as "attempt to index field 'cmd' (a function value)".
+-- State the actual requirement instead, before anything else runs.
+if vim.fn.has('nvim-0.8') ~= 1 then
+  local ok, v = pcall(vim.version)
+  local found = (ok and type(v) == 'table')
+    and string.format('%d.%d.%d', v.major, v.minor, v.patch) or 'an older release'
+  error(('this config requires Neovim 0.8 or newer (found %s)'):format(found), 0)
+end
+
 -- vim-plug is bootstrapped by install.sh; nothing to do here.
 
 
@@ -17,6 +30,8 @@ vim.call('plug#', 'junegunn/fzf.vim')
 vim.call('plug#', 'Mofiqul/vscode.nvim')
 vim.call('plug#', 'RRethy/vim-illuminate')
 vim.call('plug#', 'mg979/vim-visual-multi')
+vim.call('plug#', 'MunifTanjim/nui.nvim')   -- required by noice
+vim.call('plug#', 'folke/noice.nvim')       -- floating : cmdline (see below)
 
 -- vim-visual-multi: Ctrl+D selects the next occurrence (Ctrl+N is taken by NERDTree)
 vim.g.VM_maps = {
@@ -38,7 +53,32 @@ vim.opt.updatetime = 300
 -- Color scheme: match VSCode's default dark theme (Dark+/Dark Modern)
 vim.opt.termguicolors = true
 vim.o.background = 'dark'
-pcall(vim.cmd.colorscheme, 'vscode')
+-- Called as vim.cmd('...') rather than vim.cmd.colorscheme('...') so the pcall
+-- actually covers it: Lua evaluates the argument first, so indexing vim.cmd in
+-- pcall(vim.cmd.colorscheme, ...) happens *outside* the protected call and
+-- takes the whole config down with it if the index fails. This form also runs
+-- on nvim < 0.8, where vim.cmd is a plain function and cannot be indexed.
+pcall(vim.cmd, 'colorscheme vscode')
+
+-- noice: float the : cmdline in a centred box instead of the last line. This
+-- is the command palette from Meta's preconfigured nvim, which is LazyVim plus
+-- a meta.nvim layer; these three presets are what LazyVim itself passes, so the
+-- behaviour matches. command_palette is the one that produces the box (it puts
+-- the cmdline and its completion menu together in the centre); bottom_search
+-- deliberately leaves / and ? on the last line, where they read better.
+--
+-- noice wants Neovim 0.9, one above this config's floor, so on 0.8 the require
+-- fails and the pcall leaves the stock cmdline in place -- same degradation as
+-- the other optional plugins here.
+pcall(function()
+  require('noice').setup({
+    presets = {
+      command_palette = true,
+      bottom_search = true,
+      long_message_to_split = true,
+    },
+  })
+end)
 
 -- Auto-highlight other uses of the word under the cursor (VSCode-style)
 pcall(function()
@@ -94,7 +134,7 @@ local capabilities = ok_lsp
   or vim.lsp.protocol.make_client_capabilities()
 
 -- Locate rust-analyzer across platforms:
---   PATH (dnf on the Fedora devvm, or anything already exported)
+--   PATH (a distro package, or anything already exported)
 --   ~/.cargo/bin (rustup: `rustup component add rust-analyzer`) on macOS/Ubuntu
 --   Homebrew prefixes on macOS
 local function rust_analyzer_bin()
@@ -111,17 +151,46 @@ local function rust_analyzer_bin()
   return 'rust-analyzer'
 end
 
+-- Extra Rust project detectors, registered by the machine-local config loaded
+-- at the bottom of this file (same idea as cpp_project_detectors). Each is
+-- called with the current file's directory and returns nil, or:
+--   { root = <dir>, cmd = {...}, cmd_cwd = <dir>, settings = {...} }
+-- First match wins; plain Cargo detection below is the fallback. Build systems
+-- that aren't Cargo need a different server invocation entirely, which is why
+-- detectors get to supply cmd and settings and not just a root.
+_G.rust_project_detectors = {}
+
 -- Auto-start rust-analyzer for Rust files
 vim.api.nvim_create_autocmd("FileType", {
   pattern = {"rust"},
   callback = function()
+    local dir = vim.fn.expand("%:p:h")
+    if dir == "" then dir = vim.fn.getcwd() end
+
+    local proj
+    for _, detect in ipairs(_G.rust_project_detectors) do
+      proj = detect(dir)
+      if proj then break end
+    end
+
+    local root = proj and proj.root
+    if not root then
+      -- Search upward from the FILE, not from nvim's cwd: `nvim some/crate/src/x.rs`
+      -- run from anywhere else must still find the manifest. (vim.fs.find defaults
+      -- `path` to the cwd, which silently yields a nil root and leaves
+      -- rust-analyzer reporting "failed to discover workspace".)
+      local manifest = vim.fs.find("Cargo.toml", { upward = true, path = dir })[1]
+      if manifest then root = vim.fs.dirname(manifest) end
+    end
+
     vim.lsp.start({
       name = "rust_analyzer",
-      cmd = {rust_analyzer_bin()},
-      root_dir = vim.fs.dirname(vim.fs.find("Cargo.toml", { upward = true })[1]),
+      cmd = (proj and proj.cmd) or { rust_analyzer_bin() },
+      cmd_cwd = proj and proj.cmd_cwd or nil,
+      root_dir = root,
       capabilities = capabilities,
       on_attach = on_attach,
-      settings = {
+      settings = (proj and proj.settings) or {
         ["rust-analyzer"] = {
           checkOnSave = true,
           check = { command = "clippy" },
@@ -173,14 +242,25 @@ if ok_cmp then
   })
 end
 
+-- Extra C/C++ project detectors, registered by the machine-local config loaded
+-- at the bottom of this file. Each is called with the current file's directory
+-- and returns nil, or:
+--   { root = <dir>, bin = <clangd path>, header_insertion = "iwyu"|"never" }
+-- First match wins; the built-in detection below runs when none match. This is
+-- the seam that keeps site-specific monorepo and toolchain knowledge out of
+-- this repo.
+_G.cpp_project_detectors = {}
+
+-- Absolute clangd paths to try when none is on PATH, appended by the
+-- machine-local config. Unlike a detector this applies to every project type,
+-- including kernel trees, which never reach the detectors.
+_G.clangd_extra_candidates = {}
+
 local function clangd_bin()
   local exe = vim.fn.exepath('clangd')
   if exe ~= '' then return exe end
-  local candidates = {
-    '/opt/homebrew/opt/llvm/bin/clangd',
-    '/opt/llvm/stable/Toolchains/llvm-sand.xctoolchain/usr/bin/clangd',
-    '/opt/llvm/lkg/Toolchains/llvm-sand.xctoolchain/usr/bin/clangd',
-  }
+  local candidates = { '/opt/homebrew/opt/llvm/bin/clangd' }
+  vim.list_extend(candidates, _G.clangd_extra_candidates)
   for _, p in ipairs(candidates) do
     if vim.fn.executable(p) == 1 then return p end
   end
@@ -203,14 +283,44 @@ local function kernel_root(start)
   return nil
 end
 
+-- clangd's --background-index writes .cache/clangd/ under the project root, and
+-- the kernel's tracked .gitignore doesn't cover it. Exclude it per-clone in
+-- .git/info/exclude, which is never committed, so `git status` stays readable.
+local excluded = {}
+local function exclude_clangd_cache(root)
+  if not root or excluded[root] then return end
+  excluded[root] = true
+  local info = root .. "/.git/info"
+  if vim.fn.isdirectory(info) == 0 then return end   -- not a plain git clone
+  local path = info .. "/exclude"
+  local lines = vim.fn.filereadable(path) == 1 and vim.fn.readfile(path) or {}
+  for _, l in ipairs(lines) do
+    if l == ".cache/" then return end
+  end
+  table.insert(lines, ".cache/")
+  pcall(vim.fn.writefile, lines, path)
+end
+
 -- Auto-start clangd for C/C++ files
 vim.api.nvim_create_autocmd("FileType", {
   pattern = {"c", "cpp"},
   callback = function()
     local kroot = kernel_root()
-    -- Root at the kernel tree (where compile_commands.json lives); otherwise
-    -- anchor to the nearest compile DB / .clangd / git root.
-    local root = kroot
+    exclude_clangd_cache(kroot)
+    local proj
+    if not kroot then
+      local dir = vim.fn.expand("%:p:h")
+      for _, detect in ipairs(_G.cpp_project_detectors) do
+        proj = detect(dir)
+        if proj then break end
+      end
+    end
+    -- Root at the kernel tree, or wherever a registered detector says the
+    -- project starts (both are where compile_commands.json lives); otherwise
+    -- anchor to the nearest compile DB / .clangd / git root. Detectors take
+    -- precedence because a monorepo's nearest .clangd can sit well below its
+    -- compile DB, which would root clangd in the wrong place.
+    local root = kroot or (proj and proj.root)
     if not root then
       local marker = vim.fs.find({ "compile_commands.json", ".clangd", ".git" },
         { upward = true, path = vim.fn.expand("%:p:h") })[1]
@@ -219,12 +329,13 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.lsp.start({
       name = "clangd",
       cmd = {
-        clangd_bin(),
+        (proj and proj.bin) or clangd_bin(),
         "--background-index",
         "--clang-tidy",
         -- In kernel trees IWYU auto-include suggestions are usually wrong
         -- (kernel include rules aren't IWYU); disable there, keep elsewhere.
-        "--header-insertion=" .. (kroot and "never" or "iwyu"),
+        "--header-insertion=" ..
+          (kroot and "never" or (proj and proj.header_insertion) or "iwyu"),
         "--completion-style=detailed",
         "--function-arg-placeholders=1",
       },
@@ -235,20 +346,59 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
--- :KernelCCDB — (re)generate compile_commands.json for the current kernel tree
--- so clangd has an accurate compile database. Requires the tree to be built
--- (the target scans the .cmd files make leaves behind). Run :LspRestart after.
-vim.api.nvim_create_user_command("KernelCCDB", function()
+-- :KernelCCDB [objdir] — (re)generate compile_commands.json for the current
+-- kernel tree so clangd has an accurate compile database. Requires the tree to
+-- be built (the target scans the .cmd files make leaves behind).
+--
+-- For an O= build, pass the objdir (or set vim.g.kernel_objdir once): the .cmd
+-- files live there, so the database is generated there too and then linked into
+-- the source root, which is where clangd looks. Run :LspRestart after.
+vim.api.nvim_create_user_command("KernelCCDB", function(opts)
   local root = kernel_root()
   if not root then
     vim.notify("KernelCCDB: not inside a Linux kernel tree", vim.log.levels.ERROR)
     return
   end
-  vim.notify("KernelCCDB: make compile_commands.json in " .. root .. " ...")
-  local out = vim.fn.system({ "make", "-C", root, "compile_commands.json" })
+  local objdir = opts.args ~= "" and vim.fn.fnamemodify(opts.args, ":p:h")
+    or vim.g.kernel_objdir
+  local cmd = { "make", "-C", root }
+  if objdir then table.insert(cmd, "O=" .. objdir) end
+  table.insert(cmd, "compile_commands.json")
+
+  vim.notify("KernelCCDB: make compile_commands.json in " .. (objdir or root) .. " ...")
+  local out = vim.fn.system(cmd)
   if vim.v.shell_error ~= 0 then
     vim.notify("KernelCCDB failed:\n" .. out, vim.log.levels.ERROR)
-  else
-    vim.notify("KernelCCDB: done — run :LspRestart to pick up the new DB")
+    return
   end
-end, { desc = "Regenerate the kernel compile_commands.json" })
+
+  if objdir then
+    -- clangd searches upward from the source file, so the DB has to be
+    -- reachable from the source root. Link rather than copy so a later
+    -- regeneration in the objdir is picked up without re-running this.
+    local link = root .. "/compile_commands.json"
+    local target = objdir .. "/compile_commands.json"
+    if vim.fn.resolve(link) ~= target then
+      vim.fn.delete(link)
+      vim.fn.system({ "ln", "-s", target, link })
+      if vim.v.shell_error ~= 0 then
+        vim.notify("KernelCCDB: generated " .. target ..
+          " but could not link it into " .. root, vim.log.levels.WARN)
+        return
+      end
+    end
+  end
+  vim.notify("KernelCCDB: done — run :LspRestart to pick up the new DB")
+end, { nargs = "?", complete = "dir", desc = "Regenerate the kernel compile_commands.json" })
+
+-- Machine-local config, loaded last so it can override anything above and
+-- register cpp_project_detectors. Deliberately outside this repo (and outside
+-- ~/.config/nvim, which is a symlink into it) so work machines can add private
+-- toolchain and monorepo settings that must never be published here.
+local local_init = vim.fn.expand("~/.config/nvim-local/init.lua")
+if vim.fn.filereadable(local_init) == 1 then
+  local ok, err = pcall(dofile, local_init)
+  if not ok then
+    vim.notify("nvim-local/init.lua failed:\n" .. tostring(err), vim.log.levels.ERROR)
+  end
+end

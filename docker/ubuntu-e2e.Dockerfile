@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -39,3 +39,12 @@ RUN test -L "$HOME/.tmux.conf" \
 
 # Verify nvim plugins installed
 RUN test -d "$HOME/.local/share/nvim/plugged"
+
+# Verify init.lua actually loads and exposes the machine-local extension points
+# (the symlink checks above pass even if the Lua is broken).
+RUN nvim --headless \
+    -c 'lua assert(type(_G.cpp_project_detectors) == "table", "cpp_project_detectors missing")' \
+    -c 'lua assert(type(_G.rust_project_detectors) == "table", "rust_project_detectors missing")' \
+    -c 'lua assert(vim.fn.exists(":KernelCCDB") == 2, "KernelCCDB missing")' \
+    -c 'qa' 2>&1 | tee /tmp/nvim-load.log \
+    && ! grep -qiE '^(E[0-9]+:|Error)' /tmp/nvim-load.log

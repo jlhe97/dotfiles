@@ -7,6 +7,12 @@ CompileFlags:
   Add:
     - -Wno-unknown-warning-option
     - -Wno-unknown-attributes
+    # Kernel builds pass -Werror. Under clang the GCC-oriented flags produce
+    # warnings the real (GCC) build never sees, and -Werror turns them into
+    # errors -- enough of them to blow clangd's 19-error limit, after which it
+    # emits "too many errors emitted, stopping now" and truncates diagnostics
+    # for the whole file. Editor diagnostics should never be fatal anyway.
+    - -Wno-error
   # Strip GCC/kernel-only flags clang rejects. These never appear in normal
   # user projects, so removing them globally is safe and only helps kernel trees.
   Remove:
@@ -24,6 +30,7 @@ CompileFlags:
     - -fconserve-stack
     - -fno-allow-store-data-races
     - -fmin-function-alignment=*
+    - -falign-jumps=*
     - -fno-var-tracking-assignments
     - -femit-struct-debug-baseonly
     - --param=*

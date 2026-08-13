@@ -67,7 +67,10 @@ uninstall_via_packagefile() {
     local pkg
     while IFS= read -r pkg || [[ -n "$pkg" ]]; do
         [[ -z "$pkg" || "$pkg" == \#* ]] && continue
-        $remove_cmd "$pkg" || warn "failed to remove $pkg — skipping"
+        # </dev/null: see the matching note in install.sh -- without it a
+        # package manager that reads stdin eats the rest of the list and the
+        # loop ends early and silently.
+        $remove_cmd "$pkg" </dev/null || warn "failed to remove $pkg — skipping"
     done < "$pkg_file"
     info "Package removal complete"
 }

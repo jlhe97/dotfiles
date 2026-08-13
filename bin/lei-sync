@@ -1,9 +1,33 @@
 #!/bin/bash
+# Sync kernel mailing lists into $HOME/.mail via lei (public-inbox).
+#
+# Which senders are interesting is personal, and on a work machine the answer
+# names your employer and colleagues -- so it lives in ~/.lei-sync.local, which
+# is not part of this repo. Recognised variables:
+#
+#   LEI_PROXY            proxy to reach the public-inbox mirrors, if needed
+#   LEI_MAIL_DIR         maildir root (default: ~/.mail)
+#   LEI_MY_ADDRESS       your address, for the my-patches folder
+#   LEI_NETDEV_FILTERS   bash array of lei filter terms
+#
+# Example ~/.lei-sync.local:
+#   LEI_PROXY=http://proxy.example:8080
+#   LEI_MY_ADDRESS=you@example.com
+#   LEI_NETDEV_FILTERS=(f:example.com f:maintainer)
 set -e
 
-export https_proxy="${https_proxy:-http://fwdproxy:8080}"
+if [ -f "$HOME/.lei-sync.local" ]; then
+    # shellcheck source=/dev/null
+    . "$HOME/.lei-sync.local"
+fi
 
-MAIL_DIR="$HOME/.mail"
+# Some networks only reach the mirrors through a proxy; go direct otherwise.
+if [ -n "${LEI_PROXY:-}" ]; then
+    export https_proxy="$LEI_PROXY"
+fi
+
+MAIL_DIR="${LEI_MAIL_DIR:-$HOME/.mail}"
+WINDOW="rt:1.month.ago.."
 
 if ! command -v lei &>/dev/null; then
     echo "lei not found. Install public-inbox first." >&2
@@ -13,13 +37,25 @@ fi
 sync_netdev() {
     local dir="$MAIL_DIR/net-next"
     local list=l:netdev.vger.kernel.org
+    local first=1 filter
+
+    if [ "${#LEI_NETDEV_FILTERS[@]}" -eq 0 ]; then
+        echo "Skipping net-next: set LEI_NETDEV_FILTERS in ~/.lei-sync.local" >&2
+        return 0
+    fi
 
     echo "Syncing net-next..."
     mkdir -p "$MAIL_DIR"
 
-    lei q --no-local -t -o "Maildir:$dir" --no-save $list f:meta.com rt:1.month.ago..
-    lei q --no-local -t -a -o "Maildir:$dir" --no-save $list f:begunkov rt:1.month.ago..
-    lei q --no-local -t -a -o "Maildir:$dir" --no-save $list f:davidwei rt:1.month.ago..
+    # The first query creates the maildir; the rest append to it (-a).
+    for filter in "${LEI_NETDEV_FILTERS[@]}"; do
+        if [ "$first" = 1 ]; then
+            lei q --no-local -t -o "Maildir:$dir" --no-save "$list" "$filter" "$WINDOW"
+            first=0
+        else
+            lei q --no-local -t -a -o "Maildir:$dir" --no-save "$list" "$filter" "$WINDOW"
+        fi
+    done
 }
 
 sync_io_uring() {
@@ -28,16 +64,21 @@ sync_io_uring() {
     echo "Syncing io_uring..."
     mkdir -p "$MAIL_DIR"
 
-    lei q --no-local -t -o "Maildir:$dir" --no-save l:io-uring.vger.kernel.org rt:1.month.ago..
+    lei q --no-local -t -o "Maildir:$dir" --no-save l:io-uring.vger.kernel.org "$WINDOW"
 }
 
 sync_my_patches() {
     local dir="$MAIL_DIR/my-patches"
 
+    if [ -z "${LEI_MY_ADDRESS:-}" ]; then
+        echo "Skipping my-patches: set LEI_MY_ADDRESS in ~/.lei-sync.local" >&2
+        return 0
+    fi
+
     echo "Syncing my-patches..."
     mkdir -p "$MAIL_DIR"
 
-    lei q --no-local -t -o "Maildir:$dir" --no-save f:juanlu@fastmail.com
+    lei q --no-local -t -o "Maildir:$dir" --no-save "f:$LEI_MY_ADDRESS"
 }
 
 sync_my_patches

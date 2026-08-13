@@ -5,6 +5,7 @@ brew "isync"
 brew "notmuch"
 brew "sapling"
 brew "b4"
+brew "gh"              # GitHub CLI; `sl pr submit` shells out to it
 brew "fzf"
 brew "ripgrep"
 brew "llvm"            # clangd, clang-tidy, clang-format

@@ -417,6 +417,54 @@ EOF
   [[ "$(cat "$log")" != *"a comment"* ]]
 }
 
+# Regression: the loop feeds the package list in on stdin, so a package manager
+# that reads stdin swallows the remainder of the list and the loop ends after
+# the package that did it -- silently, since nothing returned non-zero. On
+# Ubuntu 24.04 apt did exactly this, and everything after neovim in apt.txt was
+# never attempted, with no warning to say so. The mock here reproduces that by
+# draining stdin; every package must still be attempted.
+@test "install_via_packagefile keeps going when the package manager reads stdin" {
+  local log="$TEST_HOME/apt-slurp.log"
+  cat > "$MOCK_BIN/sudo" << 'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+  # Drain with a builtin loop, not `cat`: PATH is $MOCK_BIN only, so an
+  # external command would not be found and stdin would survive, making this
+  # test pass against the unfixed loop and guard nothing.
+  # Only drain on `install`. install_via_packagefile also runs `apt update`
+  # before the loop, and that call inherits the caller's stdin rather than the
+  # package list -- draining there would block forever under bats.
+  cat > "$MOCK_BIN/apt" << EOF
+#!/bin/bash
+echo "apt \$*" >> "$log"
+if [ "\$1" = "install" ]; then
+  while IFS= read -r _; do :; done   # drain stdin, as a real package manager may
+fi
+EOF
+  chmod +x "$MOCK_BIN/sudo" "$MOCK_BIN/apt"
+
+  local fake_dotfiles="$TEST_HOME/fake_dotfiles_slurp"
+  mkdir -p "$fake_dotfiles/packages"
+  printf 'tmux\nneovim\nneomutt\nzsh\n' > "$fake_dotfiles/packages/apt.txt"
+  DOTFILES_DIR="$fake_dotfiles"
+
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_via_packagefile
+
+  export PATH="$orig_path"
+  DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
+
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$log")" == *"install -y tmux"* ]]
+  [[ "$(cat "$log")" == *"install -y neovim"* ]]
+  [[ "$(cat "$log")" == *"install -y neomutt"* ]]
+  [[ "$(cat "$log")" == *"install -y zsh"* ]]
+  [ "$(grep -c 'install -y' "$log")" -eq 4 ]
+}
+
 @test "install_via_packagefile installs each package from pacman.txt via pacman" {
   local log="$TEST_HOME/pacman.log"
   cat > "$MOCK_BIN/sudo" << 'EOF'
@@ -661,4 +709,83 @@ EOF
   export PATH="$orig_path"
   [ "$status" -eq 0 ]
   [[ "$output" == *"already installed"* ]]
+}
+
+# The mock answers the `has("nvim-0.8")` probe rather than --version, because
+# that is what nvim_meets_minimum actually reads; --version is only echoed back
+# in the log line.
+mock_nvim() {
+  cat > "$MOCK_BIN/nvim" << EOF
+#!/bin/bash
+for arg in "\$@"; do
+  case "\$arg" in
+    *'io.write(vim.fn.has'*) printf '%s' '$1'; exit 0 ;;
+  esac
+done
+echo "NVIM v$2"
+EOF
+  chmod +x "$MOCK_BIN/nvim"
+}
+
+@test "nvim_meets_minimum accepts a new enough nvim" {
+  mock_nvim 1 "0.10.0"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run nvim_meets_minimum
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+}
+
+@test "nvim_meets_minimum rejects an nvim older than 0.8" {
+  mock_nvim 0 "0.6.1"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run nvim_meets_minimum
+
+  export PATH="$orig_path"
+  [ "$status" -ne 0 ]
+}
+
+@test "nvim_meets_minimum reports failure when nvim is not on PATH" {
+  rm -f "$MOCK_BIN/nvim"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run nvim_meets_minimum
+
+  export PATH="$orig_path"
+  [ "$status" -ne 0 ]
+}
+
+@test "install_neovim skips when the installed nvim already meets the minimum" {
+  mock_nvim 1 "0.10.0"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run install_neovim
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"new enough"* ]]
+}
+
+@test "install_neovim warns instead of failing on an unsupported architecture" {
+  mock_nvim 0 "0.6.1"
+  cat > "$MOCK_BIN/uname" << 'EOF'
+#!/bin/bash
+[[ "$1" == "-m" ]] && echo "riscv64" || echo "Linux"
+EOF
+  chmod +x "$MOCK_BIN/uname"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run install_neovim
+
+  export PATH="$orig_path"
+  rm -f "$MOCK_BIN/uname"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"riscv64"* ]]
 }
