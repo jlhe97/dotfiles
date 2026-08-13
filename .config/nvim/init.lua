@@ -30,6 +30,8 @@ vim.call('plug#', 'junegunn/fzf.vim')
 vim.call('plug#', 'Mofiqul/vscode.nvim')
 vim.call('plug#', 'RRethy/vim-illuminate')
 vim.call('plug#', 'mg979/vim-visual-multi')
+vim.call('plug#', 'MunifTanjim/nui.nvim')   -- required by noice
+vim.call('plug#', 'folke/noice.nvim')       -- floating : cmdline (see below)
 
 -- vim-visual-multi: Ctrl+D selects the next occurrence (Ctrl+N is taken by NERDTree)
 vim.g.VM_maps = {
@@ -57,6 +59,26 @@ vim.o.background = 'dark'
 -- takes the whole config down with it if the index fails. This form also runs
 -- on nvim < 0.8, where vim.cmd is a plain function and cannot be indexed.
 pcall(vim.cmd, 'colorscheme vscode')
+
+-- noice: float the : cmdline in a centred box instead of the last line. This
+-- is the command palette from Meta's preconfigured nvim, which is LazyVim plus
+-- a meta.nvim layer; these three presets are what LazyVim itself passes, so the
+-- behaviour matches. command_palette is the one that produces the box (it puts
+-- the cmdline and its completion menu together in the centre); bottom_search
+-- deliberately leaves / and ? on the last line, where they read better.
+--
+-- noice wants Neovim 0.9, one above this config's floor, so on 0.8 the require
+-- fails and the pcall leaves the stock cmdline in place -- same degradation as
+-- the other optional plugins here.
+pcall(function()
+  require('noice').setup({
+    presets = {
+      command_palette = true,
+      bottom_search = true,
+      long_message_to_split = true,
+    },
+  })
+end)
 
 -- Auto-highlight other uses of the word under the cursor (VSCode-style)
 pcall(function()
