@@ -662,3 +662,82 @@ EOF
   [ "$status" -eq 0 ]
   [[ "$output" == *"already installed"* ]]
 }
+
+# The mock answers the `has("nvim-0.8")` probe rather than --version, because
+# that is what nvim_meets_minimum actually reads; --version is only echoed back
+# in the log line.
+mock_nvim() {
+  cat > "$MOCK_BIN/nvim" << EOF
+#!/bin/bash
+for arg in "\$@"; do
+  case "\$arg" in
+    *'io.write(vim.fn.has'*) printf '%s' '$1'; exit 0 ;;
+  esac
+done
+echo "NVIM v$2"
+EOF
+  chmod +x "$MOCK_BIN/nvim"
+}
+
+@test "nvim_meets_minimum accepts a new enough nvim" {
+  mock_nvim 1 "0.10.0"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run nvim_meets_minimum
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+}
+
+@test "nvim_meets_minimum rejects an nvim older than 0.8" {
+  mock_nvim 0 "0.6.1"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run nvim_meets_minimum
+
+  export PATH="$orig_path"
+  [ "$status" -ne 0 ]
+}
+
+@test "nvim_meets_minimum reports failure when nvim is not on PATH" {
+  rm -f "$MOCK_BIN/nvim"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run nvim_meets_minimum
+
+  export PATH="$orig_path"
+  [ "$status" -ne 0 ]
+}
+
+@test "install_neovim skips when the installed nvim already meets the minimum" {
+  mock_nvim 1 "0.10.0"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run install_neovim
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"new enough"* ]]
+}
+
+@test "install_neovim warns instead of failing on an unsupported architecture" {
+  mock_nvim 0 "0.6.1"
+  cat > "$MOCK_BIN/uname" << 'EOF'
+#!/bin/bash
+[[ "$1" == "-m" ]] && echo "riscv64" || echo "Linux"
+EOF
+  chmod +x "$MOCK_BIN/uname"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run install_neovim
+
+  export PATH="$orig_path"
+  rm -f "$MOCK_BIN/uname"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"riscv64"* ]]
+}

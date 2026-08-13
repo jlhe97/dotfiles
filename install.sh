@@ -131,6 +131,72 @@ install_sapling() {
     fi
 }
 
+# The nvim config requires 0.8+ (see the guard at the top of .config/nvim/init.lua).
+# Distro packages lag badly -- Ubuntu 22.04 still ships 0.6 -- so a plain
+# `apt install neovim` leaves a broken editor behind: the symlinks all land, then
+# init.lua aborts on the first 0.8-only call. Check what the package manager
+# actually gave us and top it up from the upstream release when it falls short.
+nvim_meets_minimum() {
+    command -v nvim &>/dev/null || return 1
+    # -u NONE matters: init.lua deliberately errors out on old nvim, so loading
+    # it here would make the check fail for the wrong reason (or hang on a
+    # prompt). has() is the same test the config itself uses.
+    local answer
+    answer="$(nvim -u NONE --headless -c 'lua io.write(vim.fn.has("nvim-0.8"))' -c 'qa' 2>/dev/null)"
+    [[ "$answer" == "1" ]]
+}
+
+install_neovim() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
+    if nvim_meets_minimum; then
+        info "neovim is new enough ($(nvim --version | head -1))"
+        return 0
+    fi
+
+    local arch asset
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64)         asset='nvim-linux(64|-x86_64)\.tar\.gz' ;;
+        aarch64|arm64)  asset='nvim-linux-arm64\.tar\.gz' ;;
+        *)
+            warn "no upstream neovim build for $arch — install 0.8+ manually from https://github.com/neovim/neovim/releases"
+            return 0
+            ;;
+    esac
+
+    info "neovim is missing or older than 0.8 — installing the upstream release..."
+    local tmp_tar tarball_url
+    tmp_tar="$(mktemp /tmp/neovim_XXXXXX.tar.gz)"
+    # Asset names have changed across releases (nvim-linux64 -> nvim-linux-x86_64),
+    # so resolve the current one from the release metadata rather than hardcoding.
+    tarball_url="$(proxy_curl -fsSL https://api.github.com/repos/neovim/neovim/releases/latest \
+        | grep -oE "https://[^\"]*${asset}" | head -1)"
+    if [[ -z "$tarball_url" ]]; then
+        warn "could not find an upstream neovim tarball for $arch — install 0.8+ manually"
+        rm -f "$tmp_tar"
+        return 0
+    fi
+    proxy_curl -fsSL "$tarball_url" -o "$tmp_tar"
+    # Replace any previous upstream install rather than layering a new release
+    # over it; stale files in share/nvim/runtime confuse the new binary.
+    sudo rm -rf /usr/local/lib/nvim
+    sudo mkdir -p /usr/local/lib/nvim
+    # --strip-components=1 flattens the versioned top-level dir, so the symlink
+    # target below stays stable. nvim resolves its runtime relative to the real
+    # binary, so linking bin/nvim into PATH is enough to find share/nvim/runtime.
+    sudo tar -xzf "$tmp_tar" -C /usr/local/lib/nvim --strip-components=1
+    sudo ln -sf /usr/local/lib/nvim/bin/nvim /usr/local/bin/nvim
+    rm -f "$tmp_tar"
+
+    # hash -r: the shell may have cached the old /usr/bin/nvim from earlier steps.
+    hash -r 2>/dev/null || true
+    if nvim_meets_minimum; then
+        info "neovim installed successfully ($(nvim --version | head -1))"
+    else
+        warn "neovim is still older than 0.8 after install — check that /usr/local/bin precedes /usr/bin in PATH"
+    fi
+}
+
 configure_git() {
     if ! command -v git &>/dev/null; then
         return 0
@@ -401,6 +467,10 @@ main() {
         # Linux: package list file (apt/dnf/pacman) for standard packages,
         # then individual functions for tools needing custom install steps
         install_via_packagefile || warn "some packages failed — check output above"
+        echo ""
+        # After the package file, so it can top up a too-old distro neovim, and
+        # before install_nvim_plugins, which runs the config to install plugins.
+        install_neovim || warn "neovim install incomplete — the nvim config needs 0.8+"
         echo ""
         install_sapling || true
         echo ""
