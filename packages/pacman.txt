@@ -5,6 +5,8 @@ isync
 notmuch
 keyutils
 b4
+# GitHub CLI. Arch calls it github-cli, not gh -- gh is only the binary name.
+github-cli
 fzf
 ripgrep
 zsh

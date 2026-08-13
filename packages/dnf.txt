@@ -5,6 +5,7 @@ isync
 notmuch
 keyutils
 b4
+gh
 fzf
 ripgrep
 zsh

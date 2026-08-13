@@ -5,6 +5,10 @@ isync
 notmuch
 keyutils
 b4
+# GitHub CLI; sl shells out to it for `sl pr submit`. In universe on both
+# jammy (2.4.0) and noble (2.45.0), so no third-party apt repo is needed --
+# but both trail upstream, so add cli.github.com if you need a newer one.
+gh
 fzf
 ripgrep
 zsh
