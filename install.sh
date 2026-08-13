@@ -308,7 +308,13 @@ install_via_packagefile() {
     local pkg
     while IFS= read -r pkg || [[ -n "$pkg" ]]; do
         [[ -z "$pkg" || "$pkg" == \#* ]] && continue
-        $install_cmd "$pkg" || warn "failed to install $pkg — skipping"
+        # </dev/null is load-bearing. The loop reads the package list on stdin,
+        # and a package manager that reads stdin itself consumes the rest of it
+        # in one go -- the next `read` then sees EOF and the loop ends early,
+        # silently, with no warning, because nothing failed. Every remaining
+        # package is simply never attempted. Detaching the command's stdin
+        # keeps the list intact no matter what the package manager does with it.
+        $install_cmd "$pkg" </dev/null || warn "failed to install $pkg — skipping"
     done < "$pkg_file"
     info "Package installation complete"
 }

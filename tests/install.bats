@@ -417,6 +417,54 @@ EOF
   [[ "$(cat "$log")" != *"a comment"* ]]
 }
 
+# Regression: the loop feeds the package list in on stdin, so a package manager
+# that reads stdin swallows the remainder of the list and the loop ends after
+# the package that did it -- silently, since nothing returned non-zero. On
+# Ubuntu 24.04 apt did exactly this, and everything after neovim in apt.txt was
+# never attempted, with no warning to say so. The mock here reproduces that by
+# draining stdin; every package must still be attempted.
+@test "install_via_packagefile keeps going when the package manager reads stdin" {
+  local log="$TEST_HOME/apt-slurp.log"
+  cat > "$MOCK_BIN/sudo" << 'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+  # Drain with a builtin loop, not `cat`: PATH is $MOCK_BIN only, so an
+  # external command would not be found and stdin would survive, making this
+  # test pass against the unfixed loop and guard nothing.
+  # Only drain on `install`. install_via_packagefile also runs `apt update`
+  # before the loop, and that call inherits the caller's stdin rather than the
+  # package list -- draining there would block forever under bats.
+  cat > "$MOCK_BIN/apt" << EOF
+#!/bin/bash
+echo "apt \$*" >> "$log"
+if [ "\$1" = "install" ]; then
+  while IFS= read -r _; do :; done   # drain stdin, as a real package manager may
+fi
+EOF
+  chmod +x "$MOCK_BIN/sudo" "$MOCK_BIN/apt"
+
+  local fake_dotfiles="$TEST_HOME/fake_dotfiles_slurp"
+  mkdir -p "$fake_dotfiles/packages"
+  printf 'tmux\nneovim\nneomutt\nzsh\n' > "$fake_dotfiles/packages/apt.txt"
+  DOTFILES_DIR="$fake_dotfiles"
+
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_via_packagefile
+
+  export PATH="$orig_path"
+  DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
+
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$log")" == *"install -y tmux"* ]]
+  [[ "$(cat "$log")" == *"install -y neovim"* ]]
+  [[ "$(cat "$log")" == *"install -y neomutt"* ]]
+  [[ "$(cat "$log")" == *"install -y zsh"* ]]
+  [ "$(grep -c 'install -y' "$log")" -eq 4 ]
+}
+
 @test "install_via_packagefile installs each package from pacman.txt via pacman" {
   local log="$TEST_HOME/pacman.log"
   cat > "$MOCK_BIN/sudo" << 'EOF'
