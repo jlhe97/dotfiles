@@ -1,5 +1,18 @@
 -- Minimal Neovim config for C/C++ development with LSP
 
+-- Minimum supported Neovim. Everything below leans on APIs that landed in 0.8
+-- -- vim.lsp.start, vim.fs.find, and the callable vim.cmd -- so on an older
+-- build the config dies partway through at whichever one it reaches first, with
+-- a traceback that says nothing about the real cause: Ubuntu 22.04 ships 0.6,
+-- where it surfaces as "attempt to index field 'cmd' (a function value)".
+-- State the actual requirement instead, before anything else runs.
+if vim.fn.has('nvim-0.8') ~= 1 then
+  local ok, v = pcall(vim.version)
+  local found = (ok and type(v) == 'table')
+    and string.format('%d.%d.%d', v.major, v.minor, v.patch) or 'an older release'
+  error(('this config requires Neovim 0.8 or newer (found %s)'):format(found), 0)
+end
+
 -- vim-plug is bootstrapped by install.sh; nothing to do here.
 
 
@@ -38,7 +51,12 @@ vim.opt.updatetime = 300
 -- Color scheme: match VSCode's default dark theme (Dark+/Dark Modern)
 vim.opt.termguicolors = true
 vim.o.background = 'dark'
-pcall(vim.cmd.colorscheme, 'vscode')
+-- Called as vim.cmd('...') rather than vim.cmd.colorscheme('...') so the pcall
+-- actually covers it: Lua evaluates the argument first, so indexing vim.cmd in
+-- pcall(vim.cmd.colorscheme, ...) happens *outside* the protected call and
+-- takes the whole config down with it if the index fails. This form also runs
+-- on nvim < 0.8, where vim.cmd is a plain function and cannot be indexed.
+pcall(vim.cmd, 'colorscheme vscode')
 
 -- Auto-highlight other uses of the word under the cursor (VSCode-style)
 pcall(function()
