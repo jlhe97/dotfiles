@@ -1,41 +1,146 @@
 #!/bin/bash
-# Resolve the Fastmail app password per-OS. No GPG required in the mail path,
-# so there is no gpg-agent/scdaemon to wedge. Used by both mbsync (PassCmd in
-# ~/.mbsyncrc) and neomutt (smtp_pass in ~/.neomuttrc).
+# Resolve the Fastmail app password from the OS secret store. This is the ONLY
+# accessor for that secret: mbsync (PassCmd in ~/.mbsyncrc), neomutt (smtp_pass
+# in ~/.neomuttrc), and b4/git-send-email (via the credential.helper that
+# install.sh wires up) all shell out to this script.
 #
-# Store the secret once per machine:
-#   macOS:            security add-generic-password -s fastmail-imap -a <email> -w
-#   Linux desktop:    secret-tool store --label=fastmail-imap service fastmail-imap
-#   Linux headless:   keyctl add user fastmail-imap "<app-password>" @u
-#                       (kernel keyring; re-add after a reboot)
-#   Linux (any):      pass insert fastmail-imap
+# One secret, one store, one accessor. An earlier setup kept the same password
+# in two places -- this store plus git's own osxkeychain credential -- so
+# rotating the Fastmail app password updated one and silently broke the other.
+# Don't reintroduce a second copy.
 #
-# On Linux the backends are tried in order and the first that returns a
-# non-empty secret wins, so a locked/absent secret-tool on a headless box
-# falls through to keyctl or pass automatically.
+# Deliberately NOT a plaintext file: a secret sitting in a dotfile gets picked
+# up by any recursive grep, backup, or coding agent crawling $HOME. Every store
+# below requires an explicit API call to read.
+#
+# GPG is deliberately absent. `pass` would drag gpg-agent, pinentry and a
+# passphrase prompt back into the mail path, which is the failure mode this
+# script exists to avoid.
+#
+# Store or rotate the secret with:  mail-pass --store
 set -uo pipefail
 
 SERVICE="fastmail-imap"
 
-emit() { [ -n "${1:-}" ] && { printf '%s' "$1"; exit 0; }; }
+usage() {
+    cat <<EOF
+usage: mail-pass            print the stored app password to stdout
+       mail-pass --store    prompt for the app password and save it
+       mail-pass --check    report whether a secret is present
 
-if [[ "$(uname)" == "Darwin" ]]; then
-    security find-generic-password -s "$SERVICE" -w 2>/dev/null && exit 0
-    echo "mail-pass: '$SERVICE' not found in Keychain" >&2
-    exit 1
-fi
+Generate the app password at https://www.fastmail.com/settings/security/tokens
+with "Mail (IMAP/POP/SMTP)" access -- one credential covers IMAP for mbsync and
+SMTP for both neomutt and b4.
+EOF
+}
 
-# Linux: secret-tool (libsecret) -> keyctl (kernel keyring) -> pass (GPG)
-if command -v secret-tool &>/dev/null; then
-    emit "$(secret-tool lookup service "$SERVICE" 2>/dev/null || true)"
-fi
-if command -v keyctl &>/dev/null; then
-    id="$(keyctl search @u user "$SERVICE" 2>/dev/null || true)"
-    [ -n "$id" ] && emit "$(keyctl print "$id" 2>/dev/null || true)"
-fi
-if command -v pass &>/dev/null; then
-    emit "$(pass show "$SERVICE" 2>/dev/null || true)"
-fi
+# Print the first non-empty secret found, else return 1. On Linux the desktop
+# keyring is tried first, then the kernel keyring as the headless fallback:
+# devservers and containers have no D-Bus session for libsecret to talk to.
+lookup() {
+    local secret="" id
 
-echo "mail-pass: no secret found for '$SERVICE' (tried secret-tool, keyctl, pass)" >&2
-exit 1
+    if [[ "$(uname)" == "Darwin" ]]; then
+        secret="$(security find-generic-password -s "$SERVICE" -w 2>/dev/null || true)"
+        [ -n "$secret" ] && { printf '%s' "$secret"; return 0; }
+        return 1
+    fi
+
+    if command -v secret-tool &>/dev/null; then
+        secret="$(secret-tool lookup service "$SERVICE" 2>/dev/null || true)"
+        [ -n "$secret" ] && { printf '%s' "$secret"; return 0; }
+    fi
+
+    if command -v keyctl &>/dev/null; then
+        id="$(keyctl search @u user "$SERVICE" 2>/dev/null || true)"
+        if [ -n "$id" ]; then
+            secret="$(keyctl print "$id" 2>/dev/null || true)"
+            [ -n "$secret" ] && { printf '%s' "$secret"; return 0; }
+        fi
+    fi
+
+    return 1
+}
+
+# Which backend can we write to on this host?
+backend() {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        echo "keychain"
+    elif command -v secret-tool &>/dev/null && [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+        echo "secret-tool"
+    elif command -v keyctl &>/dev/null; then
+        echo "keyctl"
+    else
+        echo "none"
+    fi
+}
+
+store() {
+    local email pw
+    email="$(git config --global user.email 2>/dev/null || true)"
+    [ -n "$email" ] || email="$SERVICE"
+
+    read -rs -p "Fastmail app password: " pw
+    echo ""
+    [ -n "$pw" ] || { echo "mail-pass: nothing entered, aborting" >&2; exit 1; }
+
+    # Fastmail app passwords are 16 characters. Anything else is almost always
+    # the account login password, which IMAP and SMTP both reject outright.
+    if [ "${#pw}" -ne 16 ]; then
+        echo "mail-pass: warning: expected a 16-character app password, got ${#pw}." >&2
+        echo "           Account login passwords are rejected by IMAP and SMTP." >&2
+    fi
+
+    case "$(backend)" in
+        keychain)
+            security add-generic-password -U -s "$SERVICE" -a "$email" -w "$pw" \
+                || { echo "mail-pass: keychain write failed" >&2; exit 1; }
+            echo "Stored in the macOS Keychain (service $SERVICE)."
+            ;;
+        secret-tool)
+            printf '%s' "$pw" | secret-tool store --label="$SERVICE" service "$SERVICE" \
+                || { echo "mail-pass: secret-tool write failed" >&2; exit 1; }
+            echo "Stored via secret-tool (service $SERVICE)."
+            ;;
+        keyctl)
+            keyctl add user "$SERVICE" "$pw" @u >/dev/null \
+                || { echo "mail-pass: keyctl write failed" >&2; exit 1; }
+            echo "Stored in the kernel keyring (service $SERVICE)."
+            echo "NOTE: the kernel keyring does not survive a reboot -- rerun"
+            echo "      'mail-pass --store' after restarting this host."
+            ;;
+        none)
+            echo "mail-pass: no secret store available on this host." >&2
+            echo "           Install libsecret-tools (desktop) or keyutils (headless)." >&2
+            exit 1
+            ;;
+    esac
+    unset pw
+}
+
+case "${1:-}" in
+    --store)
+        store
+        ;;
+    --check)
+        if lookup >/dev/null; then
+            echo "secret present (write backend on this host: $(backend))"
+        else
+            echo "no secret found for '$SERVICE'; run: mail-pass --store" >&2
+            exit 1
+        fi
+        ;;
+    -h|--help)
+        usage
+        ;;
+    "")
+        if ! lookup; then
+            echo "mail-pass: no secret found for '$SERVICE'; run: mail-pass --store" >&2
+            exit 1
+        fi
+        ;;
+    *)
+        usage >&2
+        exit 1
+        ;;
+esac

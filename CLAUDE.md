@@ -30,7 +30,7 @@ shellcheck install.sh uninstall.sh
 
 `install.sh` maintains two arrays near the top:
 
-- **`FILES`** — individual files to symlink (`.tmux.conf`, `.vimrc`, `.zshrc`, `.slconfig`, neomutt configs, claude settings, etc.)
+- **`FILES`** — individual files to symlink (`.tmux.conf`, `.vimrc`, `.zshrc`, `.slconfig`, neomutt configs, gnupg configs, claude settings, etc.)
 - **`DIRS`** — directories to symlink as a whole (`.config/nvim`, `.claude/skills`)
 
 `main()` resolves identity (`--name`/`--email` flags → existing `.neomutt/local.rc` → interactive prompt), installs packages for the detected platform (Homebrew on macOS, apt/dnf/pacman on Linux), configures git and sapling identity, sets up oh-my-zsh, loops through `FILES`/`DIRS` calling `backup_and_link()`, then installs vim/nvim plugins.
@@ -95,4 +95,44 @@ System operations that touch the real host (package managers, chsh, oh-my-zsh do
 
 ### Mail architecture
 
-Mail is **local**: `mbsync` (isync) pulls Fastmail into `~/Mail/fastmail`, `notmuch` indexes it for cross-folder threading, and neomutt reads the notmuch database (`virtual-mailboxes`). No live IMAP, no GPG in the mail path. The Fastmail app password lives in the OS secret store and is read by `bin/mail-pass`, used by both mbsync and neomutt SMTP: macOS Keychain (`security`), or on Linux the first of `secret-tool` (libsecret), `keyctl` (kernel keyring, for headless boxes), or `pass` (GPG) that returns a non-empty secret. `bin/mail-sync` runs `mbsync -a && notmuch new`; `bin/mutt` runs it before launching neomutt. `bin/mail-timer` installs a periodic-sync timer for the current OS (launchd LaunchAgent on macOS, systemd `--user` timer on Linux); run it once per machine. (`bin/lei-sync` for kernel mailing lists is retained but no longer wired into the launch path.)
+Mail is **local**: `mbsync` (isync) pulls Fastmail into `~/Mail/fastmail`, `notmuch` indexes it for cross-folder threading, and neomutt reads the notmuch database (`virtual-mailboxes`). No live IMAP, no GPG in the mail path. The Fastmail app password lives in the OS secret store and is read by `bin/mail-pass`, used by both mbsync and neomutt SMTP: macOS Keychain (`security`), or on Linux the first of `secret-tool` (libsecret) or `keyctl` (kernel keyring, for headless boxes) that returns a non-empty secret. (`pass` was dropped: it drags gpg-agent and a passphrase prompt into the mail path.) Store or rotate the secret with `mail-pass --store`, check it with `mail-pass --check`. `bin/mail-sync` runs `mbsync -a && notmuch new`; `bin/mutt` runs it before launching neomutt. `bin/mail-timer` installs a periodic-sync timer for the current OS (launchd LaunchAgent on macOS, systemd `--user` timer on Linux); run it once per machine. (`bin/lei-sync` for kernel mailing lists is retained but no longer wired into the launch path.)
+
+### Patch signing & GnuPG
+
+Kernel patches are sent with `git send-email`/`b4` through Fastmail SMTP, and signed
+with OpenPGP key `48E9148428957881DD2558116FF739276A6BB0D9` (`juanlu@fastmail.com`),
+published on keys.openpgp.org. The fingerprint is documented here on purpose: a copy
+under your own control is a second channel to check it against, which is the defence
+against a keyserver serving a spoofed key. Machine-specific identity still comes from
+`--name`/`--email` at install time, not from a committed file.
+
+`configure_patch_workflow()` in `install.sh` sets `sendemail.*`, installs a
+**URL-scoped** credential helper (`credential.smtp://smtp.fastmail.com:587.helper`)
+that shells out to `bin/mail-pass`, and then calls `configure_patch_signing()`.
+Scoped rather than global so the machine's normal helper still serves GitHub.
+The helper has two values — an empty one first to reset anything inherited from a
+broader scope, then the real one. `sendemail.smtppass` must stay **unset**: b4 only
+falls back to `git credential fill` when it is empty.
+
+**Signing is gated on the secret key being present locally.** `signing_key_fingerprint()`
+looks for a secret key matching the identity; if there is none, no signing config is
+written at all. That single condition is what makes `install.sh` safe to run in a
+container or on a devserver, and the e2e Dockerfiles assert the negative case. An
+explicitly set `user.signingKey` or `patatt.signingkey` is never clobbered.
+`commit.gpgsign` is deliberately left alone — signing mailing-list patches is a
+different decision from signing every commit on the machine.
+
+Two config files land in `~/.gnupg`, and the directory is forced to mode 700:
+
+- `.gnupg/gpg.conf` — committed, identical everywhere.
+- `.gnupg/gpg-agent.conf` — generated per machine and gitignored, because the
+  pinentry path is the one genuinely OS-specific piece: `pinentry-mac` on macOS, a
+  graphical pinentry on a Linux desktop, `pinentry-curses` headless. `.zshrc` exports
+  `GPG_TTY`, without which the curses prompt fails instead of prompting.
+
+`bin/gpg-setup` covers what the installer cannot derive: `--check` (status of key,
+agent, pinentry and publication), `--publish`, `--export`/`--import` for moving the
+secret key between machines as an encrypted transfer file, `--enable-signing`, and
+`--test`. `--publish` uses the keys.openpgp.org VKS **HTTPS** API rather than
+`gpg --send-keys`, because the hkp/hkps transport is blocked on the corporate
+network — it fails with "Invalid argument" while plain HTTPS to the same host works.

@@ -14,6 +14,7 @@ setup() {
   FAKE_DOTFILES="$TEST_HOME/fake_dotfiles"
   mkdir -p \
     "$FAKE_DOTFILES/.neomutt" \
+    "$FAKE_DOTFILES/.gnupg" \
     "$FAKE_DOTFILES/.config/nvim" \
     "$FAKE_DOTFILES/.config/clangd" \
     "$FAKE_DOTFILES/.claude/skills" \
@@ -24,6 +25,7 @@ setup() {
   touch \
     "$FAKE_DOTFILES/.neomutt/macos.rc" \
     "$FAKE_DOTFILES/.neomutt/linux.rc" \
+    "$FAKE_DOTFILES/.gnupg/gpg.conf" \
     "$FAKE_DOTFILES/.claude/settings.local.json"
 
   # --- Source install.sh and run it to lay down symlinks ---
@@ -36,16 +38,17 @@ setup() {
 
   DOTFILES_DIR="$FAKE_DOTFILES"
 
-  install_via_brewfile()    { :; }
-  install_via_packagefile() { :; }
-  install_ghostty()         { :; }
-  install_sapling()         { :; }
-  configure_git()           { :; }
-  configure_sapling()       { :; }
-  install_ohmyzsh()         { :; }
-  set_default_shell()       { :; }
-  install_vim_plugins()     { :; }
-  install_nvim_plugins()    { :; }
+  install_via_brewfile()      { :; }
+  install_via_packagefile()   { :; }
+  install_ghostty()           { :; }
+  install_sapling()           { :; }
+  configure_git()             { :; }
+  configure_sapling()         { :; }
+  configure_patch_workflow()  { :; }
+  install_ohmyzsh()           { :; }
+  set_default_shell()         { :; }
+  install_vim_plugins()       { :; }
+  install_nvim_plugins()      { :; }
 
   main --name "Test User" --email "test@example.com" >/dev/null
 
@@ -92,6 +95,23 @@ _uninstall() {
   _uninstall
   [ ! -e "$TEST_HOME/.config/nvim" ]
   [ ! -e "$TEST_HOME/.claude/skills" ]
+}
+
+@test "uninstall removes the gnupg config symlinks" {
+  _uninstall
+  [ ! -e "$TEST_HOME/.gnupg/gpg.conf" ]
+  [ ! -e "$TEST_HOME/.gnupg/gpg-agent.conf" ]
+}
+
+# The keyring is not ours to delete: uninstall removes the two config symlinks
+# it created and nothing else under ~/.gnupg.
+@test "uninstall leaves the ~/.gnupg directory and its keyring in place" {
+  echo "fake private keyring" > "$TEST_HOME/.gnupg/private-keys-v1.d.stub"
+
+  _uninstall
+
+  [ -d "$TEST_HOME/.gnupg" ]
+  [ -f "$TEST_HOME/.gnupg/private-keys-v1.d.stub" ]
 }
 
 @test "second uninstall exits cleanly" {
@@ -144,21 +164,23 @@ _uninstall() {
   rm -f "$tmpfile"
 
   DOTFILES_DIR="$FAKE_DOTFILES"
-  install_via_brewfile()    { :; }
-  install_via_packagefile() { :; }
-  install_ghostty()         { :; }
-  install_sapling()         { :; }
-  configure_git()           { :; }
-  configure_sapling()       { :; }
-  install_ohmyzsh()         { :; }
-  set_default_shell()       { :; }
-  install_vim_plugins()     { :; }
-  install_nvim_plugins()    { :; }
+  install_via_brewfile()      { :; }
+  install_via_packagefile()   { :; }
+  install_ghostty()           { :; }
+  install_sapling()           { :; }
+  configure_git()             { :; }
+  configure_sapling()         { :; }
+  configure_patch_workflow()  { :; }
+  install_ohmyzsh()           { :; }
+  set_default_shell()         { :; }
+  install_vim_plugins()       { :; }
+  install_nvim_plugins()      { :; }
 
   main --name "Test User" --email "test@example.com" >/dev/null
 
   [ -L "$TEST_HOME/.tmux.conf" ]
   [ -L "$TEST_HOME/.vimrc" ]
   [ -L "$TEST_HOME/.zshrc" ]
+  [ -L "$TEST_HOME/.gnupg/gpg.conf" ]
   [ "$(readlink "$TEST_HOME/.tmux.conf")" = "$FAKE_DOTFILES/.tmux.conf" ]
 }
