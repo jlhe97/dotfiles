@@ -4,7 +4,17 @@ neomutt
 isync
 notmuch
 keyutils
+# libsecret-tools provides secret-tool, the desktop keyring backend bin/mail-pass
+# tries first on Linux. keyutils above is the headless fallback; a box with
+# neither has nowhere to put the Fastmail password.
+libsecret-tools
 b4
+# GnuPG for signing patches sent with b4. pinentry-curses is the passphrase
+# prompt that works everywhere -- over ssh, in tmux, on a headless devserver.
+# install.sh prefers a graphical pinentry when a display is present, so add
+# pinentry-gnome3 by hand on a desktop if you want the GUI dialog.
+gnupg
+pinentry-curses
 # GitHub CLI; sl shells out to it for `sl pr submit`. In universe on both
 # jammy (2.4.0) and noble (2.45.0), so no third-party apt repo is needed --
 # but both trail upstream, so add cli.github.com if you need a newer one.

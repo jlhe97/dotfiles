@@ -4,7 +4,12 @@ neomutt
 isync
 notmuch
 keyutils
+libsecret
 b4
+# GnuPG for b4 patch signing. Arch's pinentry package bundles every frontend,
+# so install.sh can pick the graphical one on a desktop and curses over ssh.
+gnupg
+pinentry
 # GitHub CLI. Arch calls it github-cli, not gh -- gh is only the binary name.
 github-cli
 fzf
