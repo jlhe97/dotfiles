@@ -17,6 +17,7 @@ setup() {
   FAKE_DOTFILES="$TEST_HOME/fake_dotfiles"
   mkdir -p \
     "$FAKE_DOTFILES/.neomutt" \
+    "$FAKE_DOTFILES/.gnupg" \
     "$FAKE_DOTFILES/.config/nvim" \
     "$FAKE_DOTFILES/.config/clangd" \
     "$FAKE_DOTFILES/.claude/skills" \
@@ -27,6 +28,7 @@ setup() {
   touch \
     "$FAKE_DOTFILES/.neomutt/macos.rc" \
     "$FAKE_DOTFILES/.neomutt/linux.rc" \
+    "$FAKE_DOTFILES/.gnupg/gpg.conf" \
     "$FAKE_DOTFILES/.claude/settings.local.json"
 
   # Source install functions without running main or set -e.
@@ -42,16 +44,23 @@ setup() {
   # BACKUP_DIR was set to $TEST_HOME/.dotfiles_backup_<ts> by the source — keep it.
 
   # Stub every operation that touches the real system.
-  install_via_brewfile()    { :; }
-  install_via_packagefile() { :; }
-  install_ghostty()         { :; }
-  install_sapling()         { :; }
-  configure_git()           { :; }
-  configure_sapling()       { :; }
-  install_ohmyzsh()         { :; }
-  set_default_shell()       { :; }
-  install_vim_plugins()     { :; }
-  install_nvim_plugins()    { :; }
+  #
+  # configure_patch_workflow is stubbed for the same reason as configure_git:
+  # it writes global git config, and with XDG_CONFIG_HOME inherited from the
+  # real environment that can land outside the faked HOME. configure_gnupg is
+  # deliberately NOT stubbed — it only writes inside HOME and DOTFILES_DIR,
+  # both faked here, so it gets real idempotency coverage.
+  install_via_brewfile()      { :; }
+  install_via_packagefile()   { :; }
+  install_ghostty()           { :; }
+  install_sapling()           { :; }
+  configure_git()             { :; }
+  configure_sapling()         { :; }
+  configure_patch_workflow()  { :; }
+  install_ohmyzsh()           { :; }
+  set_default_shell()         { :; }
+  install_vim_plugins()       { :; }
+  install_nvim_plugins()      { :; }
 }
 
 teardown() {
@@ -158,4 +167,33 @@ _install() {
   count_after_second="$(find "$TEST_HOME" -maxdepth 1 -name '.dotfiles_backup*' -type d | wc -l)"
 
   [ "$count_after_first" -eq "$count_after_second" ]
+}
+
+# ---------------------------------------------------------------------------
+# GnuPG config
+# ---------------------------------------------------------------------------
+
+@test "install links both gnupg config files" {
+  _install
+
+  [ -L "$TEST_HOME/.gnupg/gpg.conf" ]
+  [ -L "$TEST_HOME/.gnupg/gpg-agent.conf" ]
+  [ "$(readlink "$TEST_HOME/.gnupg/gpg.conf")" = "$FAKE_DOTFILES/.gnupg/gpg.conf" ]
+}
+
+# gpg refuses to use a homedir other users can read, and the FILES loop's
+# `mkdir -p` would otherwise create it with the umask default.
+@test "install leaves ~/.gnupg at mode 700" {
+  _install
+
+  local mode
+  mode="$(stat -c %a "$TEST_HOME/.gnupg" 2>/dev/null || stat -f %A "$TEST_HOME/.gnupg")"
+  [ "$mode" = "700" ]
+}
+
+@test "gpg-agent.conf is not rewritten on a second run" {
+  _install
+  local second_out
+  second_out="$(_install 2>&1)"
+  [[ "$second_out" == *"gpg-agent.conf is already up to date"* ]]
 }

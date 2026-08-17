@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get install -y shellcheck
-      - run: shellcheck install.sh uninstall.sh
+      - run: shellcheck install.sh uninstall.sh bin/mail-pass bin/gpg-setup
 
   test-linux:
     name: ${{ matrix.name }}
@@ -67,7 +67,7 @@ jobs:
       - name: Run install.sh
         run: ./install.sh --name "Test User" --email "test@example.com"
       - name: Verify packages on PATH
-        run: command -v tmux && command -v nvim && command -v neomutt && command -v zsh && command -v mbsync && command -v notmuch && command -v fzf && command -v rg
+        run: command -v tmux && command -v nvim && command -v neomutt && command -v zsh && command -v mbsync && command -v notmuch && command -v gpg && command -v pinentry-mac && command -v fzf && command -v rg
       - name: Verify dotfile symlinks
         run: |
           test -L "$HOME/.tmux.conf"
@@ -79,7 +79,18 @@ jobs:
           test -L "$HOME/.config/clangd"
           test -L "$HOME/.slconfig"
           test -L "$HOME/.neomutt/macos.rc"
+          test -L "$HOME/.gnupg/gpg.conf"
+          test -L "$HOME/.gnupg/gpg-agent.conf"
           test -L "$HOME/.claude/skills"
           test -L "$HOME/bin"
+      - name: Verify gnupg homedir permissions and pinentry choice
+        run: |
+          test "$(stat -f %A "$HOME/.gnupg")" = "700"
+          grep -q 'pinentry-mac' "$HOME/.gnupg/gpg-agent.conf"
+      - name: Verify patch workflow config, with signing correctly left off
+        run: |
+          test "$(git config --global --get sendemail.smtpserver)" = "smtp.fastmail.com"
+          git config --global --get-all 'credential.smtp://smtp.fastmail.com:587.helper' | grep -q mail-pass
+          test -z "$(git config --global --get patatt.signingkey || true)"
       - name: Verify nvim plugins installed
         run: test -d "$HOME/.local/share/nvim/plugged"

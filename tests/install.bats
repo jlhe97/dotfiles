@@ -789,3 +789,398 @@ EOF
   [ "$status" -eq 0 ]
   [[ "$output" == *"riscv64"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# pinentry_program
+# ---------------------------------------------------------------------------
+
+# Return the octal mode of $1 on both GNU and BSD stat.
+_mode() {
+  stat -c %a "$1" 2>/dev/null || stat -f %A "$1"
+}
+
+_mock_uname() {
+  cat > "$MOCK_BIN/uname" << EOF
+#!/bin/bash
+[[ "\$1" == "-m" ]] && echo "x86_64" || echo "$1"
+EOF
+  chmod +x "$MOCK_BIN/uname"
+}
+
+# Narrow PATH to MOCK_BIN alone -- the way to prove a binary is absent when the
+# host might have it installed -- while keeping the few utilities the function
+# under test genuinely calls. Stripping PATH outright breaks mkdir/chmod/cat
+# and fails the test for the wrong reason.
+_isolate_path_with() {
+  local u
+  for u in "$@"; do
+    ln -sf "$(command -v "$u")" "$MOCK_BIN/$u"
+  done
+  export PATH="$MOCK_BIN"
+}
+
+@test "pinentry_program prefers pinentry-mac on macOS" {
+  _mock_uname Darwin
+  printf '#!/bin/bash\n' > "$MOCK_BIN/pinentry-mac"
+  printf '#!/bin/bash\n' > "$MOCK_BIN/pinentry-curses"
+  chmod +x "$MOCK_BIN/pinentry-mac" "$MOCK_BIN/pinentry-curses"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run pinentry_program
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pinentry-mac" ]]
+}
+
+# The headless case is the one that matters: a devserver or container has no
+# display, and a graphical pinentry there would hang instead of prompting.
+@test "pinentry_program falls back to curses on Linux with no display" {
+  _mock_uname Linux
+  printf '#!/bin/bash\n' > "$MOCK_BIN/pinentry-curses"
+  chmod +x "$MOCK_BIN/pinentry-curses"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+  unset DISPLAY WAYLAND_DISPLAY
+
+  run pinentry_program
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pinentry-curses" ]]
+}
+
+@test "pinentry_program prefers a graphical prompt when a display is present" {
+  _mock_uname Linux
+  printf '#!/bin/bash\n' > "$MOCK_BIN/pinentry-gnome3"
+  printf '#!/bin/bash\n' > "$MOCK_BIN/pinentry-curses"
+  chmod +x "$MOCK_BIN/pinentry-gnome3" "$MOCK_BIN/pinentry-curses"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+  export DISPLAY=":0"
+
+  run pinentry_program
+
+  export PATH="$orig_path"
+  unset DISPLAY
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pinentry-gnome3" ]]
+}
+
+@test "pinentry_program fails when no pinentry is installed" {
+  _mock_uname Linux
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+  unset DISPLAY WAYLAND_DISPLAY
+
+  run pinentry_program
+
+  export PATH="$orig_path"
+  [ "$status" -ne 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# configure_gnupg
+# ---------------------------------------------------------------------------
+
+_setup_gnupg_fixture() {
+  DOTFILES_DIR="$TEST_HOME/fake_dotfiles"
+  mkdir -p "$DOTFILES_DIR"
+  _mock_uname Linux
+  printf '#!/bin/bash\n' > "$MOCK_BIN/pinentry-curses"
+  chmod +x "$MOCK_BIN/pinentry-curses"
+  unset DISPLAY WAYLAND_DISPLAY
+}
+
+@test "configure_gnupg creates ~/.gnupg with 700 permissions" {
+  _setup_gnupg_fixture
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  configure_gnupg
+
+  export PATH="$orig_path"
+  [ -d "$TEST_HOME/.gnupg" ]
+  [ "$(_mode "$TEST_HOME/.gnupg")" = "700" ]
+}
+
+# A pre-existing directory created with the umask default must be tightened,
+# not left as it was — gpg refuses to use a world-readable homedir.
+@test "configure_gnupg tightens an already-loose ~/.gnupg" {
+  _setup_gnupg_fixture
+  mkdir -p "$TEST_HOME/.gnupg"
+  chmod 755 "$TEST_HOME/.gnupg"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  configure_gnupg
+
+  export PATH="$orig_path"
+  [ "$(_mode "$TEST_HOME/.gnupg")" = "700" ]
+}
+
+@test "configure_gnupg writes gpg-agent.conf naming the resolved pinentry" {
+  _setup_gnupg_fixture
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  configure_gnupg
+
+  export PATH="$orig_path"
+  local conf="$DOTFILES_DIR/.gnupg/gpg-agent.conf"
+  [ -f "$conf" ]
+  [[ "$(cat "$conf")" == *"pinentry-program"*"pinentry-curses"* ]]
+  [[ "$(cat "$conf")" == *"default-cache-ttl 3600"* ]]
+}
+
+@test "configure_gnupg is a no-op on the second run" {
+  _setup_gnupg_fixture
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  configure_gnupg
+  run configure_gnupg
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"already up to date"* ]]
+}
+
+@test "configure_gnupg warns but still writes a conf when no pinentry exists" {
+  _setup_gnupg_fixture
+  rm -f "$MOCK_BIN/pinentry-curses"
+  local orig_path="$PATH"
+  _isolate_path_with mkdir chmod cat
+
+  run configure_gnupg
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no pinentry binary found"* ]]
+  [ -f "$DOTFILES_DIR/.gnupg/gpg-agent.conf" ]
+}
+
+# ---------------------------------------------------------------------------
+# signing_key_fingerprint
+# ---------------------------------------------------------------------------
+
+# Emit the colon-delimited records gpg would produce for a key. $1 non-empty
+# means "this identity has a secret key".
+_mock_gpg_with_key() {
+  cat > "$MOCK_BIN/gpg" << 'EOF'
+#!/bin/bash
+if [[ "$*" == *"--list-secret-keys"* ]]; then
+  echo "sec:u:255:22:6FF739276A6BB0D9:1775692800:::u:::scESC:::+:::23::0:"
+  echo "fpr:::::::::48E9148428957881DD2558116FF739276A6BB0D9:"
+  echo "uid:u::::1775692800::ABC::Test User <test@example.com>::::::::::0:"
+fi
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/gpg"
+}
+
+_mock_gpg_no_key() {
+  printf '#!/bin/bash\nexit 2\n' > "$MOCK_BIN/gpg"
+  chmod +x "$MOCK_BIN/gpg"
+}
+
+@test "signing_key_fingerprint returns nothing when gpg is not installed" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run signing_key_fingerprint "test@example.com"
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "signing_key_fingerprint returns nothing when the identity has no key" {
+  _mock_gpg_no_key
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run signing_key_fingerprint "test@example.com"
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "signing_key_fingerprint extracts the full fingerprint from --with-colons" {
+  _mock_gpg_with_key
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run signing_key_fingerprint "test@example.com"
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [ "$output" = "48E9148428957881DD2558116FF739276A6BB0D9" ]
+}
+
+# ---------------------------------------------------------------------------
+# configure_patch_workflow / configure_patch_signing
+#
+# These use the real git against a throwaway HOME rather than a mock: the
+# behaviour under test is what actually lands in the config file, including
+# the two-value credential helper, which a mock would not reproduce faithfully.
+# ---------------------------------------------------------------------------
+
+_setup_git_fixture() {
+  : > "$TEST_HOME/.gitconfig"
+  export GIT_CONFIG_GLOBAL="$TEST_HOME/.gitconfig"
+}
+
+@test "configure_patch_workflow returns 0 silently when git is not on PATH" {
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run configure_patch_workflow "test@example.com"
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "configure_patch_workflow sets the Fastmail sendemail keys" {
+  _setup_git_fixture
+  _mock_gpg_no_key
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  configure_patch_workflow "test@example.com"
+
+  export PATH="$orig_path"
+  [ "$(git config --global --get sendemail.smtpserver)" = "smtp.fastmail.com" ]
+  [ "$(git config --global --get sendemail.smtpserverport)" = "587" ]
+  [ "$(git config --global --get sendemail.smtpencryption)" = "tls" ]
+  [ "$(git config --global --get sendemail.smtpuser)" = "test@example.com" ]
+}
+
+# b4 only consults `git credential fill` -- and so bin/mail-pass -- when
+# sendemail.smtppass is empty. A value left here silently pins a stale second
+# copy of the password, which is the bug this whole design removed.
+@test "configure_patch_workflow removes a lingering sendemail.smtppass" {
+  _setup_git_fixture
+  _mock_gpg_no_key
+  git config --global sendemail.smtppass "stale-password"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run configure_patch_workflow "test@example.com"
+
+  export PATH="$orig_path"
+  [[ "$output" == *"removed sendemail.smtppass"* ]]
+  [ -z "$(git config --global --get sendemail.smtppass || true)" ]
+}
+
+@test "configure_patch_workflow installs the scoped credential helper with its reset" {
+  _setup_git_fixture
+  _mock_gpg_no_key
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  configure_patch_workflow "test@example.com"
+
+  export PATH="$orig_path"
+  local values
+  values="$(git config --global --get-all 'credential.smtp://smtp.fastmail.com:587.helper')"
+  # Two values: the empty reset that drops any inherited helper, then ours.
+  [ "$(echo "$values" | wc -l | tr -d ' ')" = "2" ]
+  [[ "$values" == *"mail-pass"* ]]
+}
+
+@test "configure_patch_workflow does not duplicate the helper on a second run" {
+  _setup_git_fixture
+  _mock_gpg_no_key
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  configure_patch_workflow "test@example.com"
+  run configure_patch_workflow "test@example.com"
+
+  export PATH="$orig_path"
+  [[ "$output" == *"already configured"* ]]
+  local count
+  count="$(git config --global --get-all 'credential.smtp://smtp.fastmail.com:587.helper' | wc -l | tr -d ' ')"
+  [ "$count" = "2" ]
+}
+
+# The gate that makes the installer safe everywhere: no local secret key means
+# no signing config at all, so a container or devserver never ends up trying
+# to sign with a key it does not have.
+@test "configure_patch_signing leaves signing off when there is no secret key" {
+  _setup_git_fixture
+  _mock_gpg_no_key
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run configure_patch_signing "test@example.com"
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"leaving patch signing off"* ]]
+  [ -z "$(git config --global --get patatt.signingkey || true)" ]
+  [ -z "$(git config --global --get user.signingKey || true)" ]
+}
+
+@test "configure_patch_signing enables signing when the secret key is present" {
+  _setup_git_fixture
+  _mock_gpg_with_key
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run configure_patch_signing "test@example.com"
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [ "$(git config --global --get user.signingKey)" = "48E9148428957881DD2558116FF739276A6BB0D9" ]
+  [ "$(git config --global --get patatt.signingkey)" = "openpgp:48E9148428957881DD2558116FF739276A6BB0D9" ]
+}
+
+@test "configure_patch_signing clears the historical b4 no-sign opt-out" {
+  _setup_git_fixture
+  _mock_gpg_with_key
+  git config --global b4.send-no-patatt-sign true
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  configure_patch_signing "test@example.com"
+
+  export PATH="$orig_path"
+  [ -z "$(git config --global --get b4.send-no-patatt-sign || true)" ]
+}
+
+# Someone who pointed these at a different key -- a work key, a hardware
+# token -- meant to. The installer must not quietly take it over.
+@test "configure_patch_signing does not clobber an explicit signing key" {
+  _setup_git_fixture
+  _mock_gpg_with_key
+  git config --global user.signingKey "DEADBEEFDEADBEEF"
+  git config --global patatt.signingkey "openpgp:DEADBEEFDEADBEEF"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  run configure_patch_signing "test@example.com"
+
+  export PATH="$orig_path"
+  [[ "$output" == *"already set"* ]]
+  [ "$(git config --global --get user.signingKey)" = "DEADBEEFDEADBEEF" ]
+  [ "$(git config --global --get patatt.signingkey)" = "openpgp:DEADBEEFDEADBEEF" ]
+}
+
+@test "configure_patch_signing is idempotent across runs" {
+  _setup_git_fixture
+  _mock_gpg_with_key
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN:$PATH"
+
+  configure_patch_signing "test@example.com"
+  configure_patch_signing "test@example.com"
+
+  export PATH="$orig_path"
+  [ "$(git config --global --get-all user.signingKey | wc -l | tr -d ' ')" = "1" ]
+  [ "$(git config --global --get patatt.signingkey)" = "openpgp:48E9148428957881DD2558116FF739276A6BB0D9" ]
+}
