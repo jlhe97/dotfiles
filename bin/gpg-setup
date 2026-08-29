@@ -1,0 +1,406 @@
+#!/bin/bash
+# Cross-platform GnuPG setup for the kernel patch-signing workflow.
+#
+# install.sh already does everything that can be derived from the host: it
+# writes gpg-agent.conf with a pinentry that works here, and -- only if the
+# secret key is already present -- turns on git/patatt signing. This script
+# covers the parts it cannot: moving the secret key to a new machine,
+# publishing the public half, and proving the chain end to end.
+#
+# The secret key is never written into the dotfiles repo and never to disk in
+# the clear: --export produces a symmetrically encrypted transfer file.
+set -uo pipefail
+
+KEYSERVER_API="https://keys.openpgp.org"
+
+usage() {
+    cat <<'EOF'
+usage: gpg-setup [command]
+
+  --check             report key, agent, pinentry and publication status (default)
+  --publish           upload the public key to keys.openpgp.org over HTTPS
+  --export FILE       write an encrypted copy of the secret key for transfer
+  --import FILE       import a transfer file produced by --export
+  --enable-signing    point git/patatt at the local secret key
+  --test              make and verify a signature, exercising the full chain
+
+Typical bring-up on a new machine:
+  1. on the machine that has the key:   gpg-setup --export /tmp/key.gpg
+  2. copy it over a channel you trust:  scp /tmp/key.gpg newbox:/tmp/
+  3. on the new machine:                gpg-setup --import /tmp/key.gpg
+  4.                                    gpg-setup --enable-signing && gpg-setup --test
+  5. shred the transfer file on both ends.
+EOF
+}
+
+err()  { echo "gpg-setup: $*" >&2; }
+have() { command -v "$1" &>/dev/null; }
+
+require_gpg() {
+    if ! have gpg; then
+        err "gpg is not installed (apt: gnupg, dnf: gnupg2, brew: gnupg)"
+        exit 1
+    fi
+}
+
+# The email this machine signs as. Comes from git, which install.sh has
+# already configured from the same identity as everything else.
+signing_email() {
+    git config --global user.email 2>/dev/null || true
+}
+
+# Full fingerprint of the local secret key for $1, empty if there is none.
+# Field 10 of an fpr record; --with-colons is the only output format gpg
+# promises not to change between versions.
+secret_fpr() {
+    gpg --list-secret-keys --with-colons "$1" 2>/dev/null \
+        | awk -F: '/^fpr:/ { print $10; exit }'
+}
+
+public_fpr() {
+    gpg --list-keys --with-colons "$1" 2>/dev/null \
+        | awk -F: '/^fpr:/ { print $10; exit }'
+}
+
+# Encode a file as a JSON string. keys.openpgp.org's VKS API wants the armored
+# key inside JSON, and an armored key is multi-line, so this needs a real
+# encoder rather than string concatenation.
+# The interpreter b4 runs under, read out of its shebang.
+#
+# b4 imports patatt as a library rather than shelling out to it, so the patatt
+# CLI is usually absent -- Homebrew's b4 keeps it inside a private venv, and
+# `command -v patatt` finds nothing even though signing works perfectly. To
+# check the thing b4 actually uses, we have to ask b4's own interpreter.
+patatt_python() {
+    local b4_path shebang
+    b4_path="$(command -v b4 2>/dev/null)" || return 1
+    [ -n "$b4_path" ] || return 1
+    shebang="$(head -1 "$b4_path" 2>/dev/null)"
+    case "$shebang" in
+        '#!'*python*) printf '%s' "${shebang#\#!}" ;;
+        *)            return 1 ;;
+    esac
+}
+
+json_string_from_file() {
+    if have jq; then
+        jq -Rs . < "$1"
+    elif have python3; then
+        python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' < "$1"
+    else
+        return 1
+    fi
+}
+
+cmd_check() {
+    require_gpg
+    local email fpr pub status
+    email="$(signing_email)"
+    if [ -z "$email" ]; then
+        err "git user.email is unset — run install.sh first"
+        exit 1
+    fi
+    echo "identity:      $email"
+
+    fpr="$(secret_fpr "$email")"
+    pub="$(public_fpr "$email")"
+    if [ -n "$fpr" ]; then
+        echo "secret key:    $fpr"
+    elif [ -n "$pub" ]; then
+        echo "secret key:    ABSENT (public key present: $pub)"
+        echo "               this machine can verify but not sign; see --import"
+    else
+        echo "secret key:    ABSENT (no key at all for this identity)"
+    fi
+
+    # gpg-agent.conf is a symlink install.sh generated; show what it resolved
+    # the pinentry to, since a wrong one here is the usual cause of a signing
+    # attempt that hangs instead of prompting.
+    local agent_conf="$HOME/.gnupg/gpg-agent.conf" pinentry=""
+    if [ -f "$agent_conf" ]; then
+        pinentry="$(awk '/^pinentry-program/ { print $2 }' "$agent_conf")"
+    fi
+    if [ -n "$pinentry" ] && [ -x "$pinentry" ]; then
+        echo "pinentry:      $pinentry"
+    elif [ -n "$pinentry" ]; then
+        echo "pinentry:      $pinentry (MISSING — install it or re-run install.sh)"
+    else
+        echo "pinentry:      not configured (re-run install.sh)"
+    fi
+
+    if [ -z "${GPG_TTY:-}" ] && [ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+        echo "GPG_TTY:       unset with no display — a curses pinentry will fail"
+        echo "               open a new shell so .zshrc can export it"
+    fi
+
+    echo -n "git signing:   "
+    local sk pk
+    sk="$(git config --global --get user.signingKey 2>/dev/null || true)"
+    pk="$(git config --global --get patatt.signingkey 2>/dev/null || true)"
+    if [ -n "$pk" ]; then
+        echo "on (patatt.signingkey=$pk)"
+    elif [ -n "$sk" ]; then
+        echo "user.signingKey=$sk but patatt.signingkey unset — run --enable-signing"
+    else
+        echo "off — run --enable-signing"
+    fi
+
+    echo -n "b4 opt-out:    "
+    if [ -n "$(git config --global --get b4.send-no-patatt-sign 2>/dev/null || true)" ]; then
+        echo "b4.send-no-patatt-sign is SET — b4 will not sign; run --enable-signing"
+    else
+        echo "clear"
+    fi
+
+    # Publication is what makes a signature worth anything: an unpublished key
+    # means no recipient can verify it.
+    echo -n "published:     "
+    if [ -z "$fpr$pub" ]; then
+        echo "n/a (no local key)"
+        return 0
+    fi
+    status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+        "$KEYSERVER_API/vks/v1/by-fingerprint/${fpr:-$pub}" 2>/dev/null || echo "000")"
+    case "$status" in
+        200) echo "yes — $KEYSERVER_API/search?q=${fpr:-$pub}" ;;
+        404) echo "NO — key is not on keys.openpgp.org; run --publish" ;;
+        *)   echo "unknown (HTTP $status; network or proxy problem)" ;;
+    esac
+}
+
+cmd_publish() {
+    require_gpg
+    local email fpr tmp payload response
+    email="$(signing_email)"
+    fpr="$(secret_fpr "$email")"
+    [ -n "$fpr" ] || fpr="$(public_fpr "$email")"
+    if [ -z "$fpr" ]; then
+        err "no key found for <$email>"
+        exit 1
+    fi
+
+    tmp="$(mktemp)"
+    # --export is the public half only. Belt and braces: refuse to upload
+    # anything that even mentions a private key block.
+    gpg --export --armor "$fpr" > "$tmp"
+    if grep -q 'PRIVATE KEY' "$tmp"; then
+        err "refusing to upload: export contains private key material"
+        rm -f "$tmp"
+        exit 1
+    fi
+
+    payload="$(mktemp)"
+    if ! json_string_from_file "$tmp" > "$payload.str"; then
+        err "need jq or python3 to build the upload request"
+        rm -f "$tmp" "$payload" "$payload.str"
+        exit 1
+    fi
+    printf '{"keytext": %s}' "$(cat "$payload.str")" > "$payload"
+
+    # The VKS HTTPS API rather than `gpg --send-keys`: the hkp/hkps transport
+    # is blocked on some corporate networks (it fails with "Invalid argument"),
+    # while ordinary HTTPS to the same host goes through.
+    response="$(curl -sS --max-time 30 -X POST \
+        -H 'Content-Type: application/json' \
+        --data-binary "@$payload" \
+        "$KEYSERVER_API/vks/v1/upload" 2>&1)"
+    rm -f "$tmp" "$payload" "$payload.str"
+
+    if [ -z "$response" ]; then
+        err "upload produced no response — check connectivity to $KEYSERVER_API"
+        exit 1
+    fi
+    echo "$response"
+    echo ""
+    echo "Uploaded $fpr."
+    echo "The key is now searchable by fingerprint. To make it findable by"
+    echo "email address you must confirm the address:"
+    echo "  $KEYSERVER_API/manage  (paste the fingerprint, request verification)"
+    echo "then click the link in the mail sent to <$email>."
+}
+
+cmd_export() {
+    require_gpg
+    local out="${1:-}" email fpr
+    if [ -z "$out" ]; then
+        err "--export needs a destination path"
+        exit 1
+    fi
+    if [ -e "$out" ]; then
+        err "$out already exists — refusing to overwrite"
+        exit 1
+    fi
+    email="$(signing_email)"
+    fpr="$(secret_fpr "$email")"
+    if [ -z "$fpr" ]; then
+        err "no secret key for <$email> on this machine"
+        exit 1
+    fi
+
+    # Symmetric encryption on top of the key's own passphrase. The transfer
+    # file crosses scp, a USB stick or a laptop's Downloads dir, and a bare
+    # --export-secret-keys is readable by anything that picks it up.
+    ( umask 077 && gpg --export-secret-keys --armor "$fpr" \
+        | gpg --symmetric --cipher-algo AES256 --armor --output "$out" )
+    local rc=$?
+    if [ $rc -ne 0 ] || [ ! -s "$out" ]; then
+        err "export failed"
+        rm -f "$out"
+        exit 1
+    fi
+    chmod 600 "$out"
+    echo "Wrote encrypted secret key to $out"
+    echo "Copy it to the target machine, run 'gpg-setup --import' there, then"
+    echo "delete it from BOTH ends (shred -u \"$out\" where shred exists)."
+}
+
+cmd_import() {
+    require_gpg
+    local in="${1:-}"
+    if [ -z "$in" ] || [ ! -f "$in" ]; then
+        err "--import needs the transfer file produced by --export"
+        exit 1
+    fi
+    gpg --decrypt "$in" 2>/dev/null | gpg --import || {
+        err "import failed"
+        exit 1
+    }
+    # An imported key arrives with unknown ownertrust, which makes gpg print a
+    # scary warning on every verification of your own signature.
+    local email fpr
+    email="$(signing_email)"
+    fpr="$(secret_fpr "$email")"
+    if [ -n "$fpr" ]; then
+        printf '%s:6:\n' "$fpr" | gpg --import-ownertrust 2>/dev/null || true
+        echo "Imported $fpr and marked it ultimately trusted."
+        echo "Now run: gpg-setup --enable-signing && gpg-setup --test"
+    fi
+}
+
+cmd_enable_signing() {
+    require_gpg
+    local email fpr
+    email="$(signing_email)"
+    fpr="$(secret_fpr "$email")"
+    if [ -z "$fpr" ]; then
+        err "no secret key for <$email> — import it first (--import)"
+        exit 1
+    fi
+    git config --global user.signingKey "$fpr"
+    git config --global patatt.signingkey "openpgp:$fpr"
+    git config --global --unset-all b4.send-no-patatt-sign 2>/dev/null || true
+    echo "Signing enabled with $fpr."
+    echo "commit.gpgsign is deliberately left alone — this signs patches sent"
+    echo "to mailing lists, not every commit in every repo on the machine."
+}
+
+cmd_test() {
+    require_gpg
+    local email fpr tmp
+    email="$(signing_email)"
+    fpr="$(secret_fpr "$email")"
+    if [ -z "$fpr" ]; then
+        err "no secret key for <$email>"
+        exit 1
+    fi
+    tmp="$(mktemp -d)"
+    echo "patch signing smoke test" > "$tmp/msg"
+
+    echo "Signing with $fpr (you should get a passphrase prompt)..."
+    if ! gpg --local-user "$fpr" --armor --detach-sign --output "$tmp/msg.asc" "$tmp/msg"; then
+        err "signing failed — check the pinentry reported by --check"
+        rm -rf "$tmp"
+        exit 1
+    fi
+    if ! gpg --verify "$tmp/msg.asc" "$tmp/msg" 2>&1 | grep -q 'Good signature'; then
+        err "verification failed"
+        rm -rf "$tmp"
+        exit 1
+    fi
+    rm -rf "$tmp"
+    echo "Signature made and verified."
+
+    # gpg working does not prove b4 will sign: b4 goes through patatt, which
+    # resolves its own config and drives gpg itself. Exercise that path for
+    # real -- sign a message through patatt and validate the result -- rather
+    # than just reading git config back and assuming.
+    local pk expected="openpgp:$fpr"
+    pk="$(git config --global --get patatt.signingkey 2>/dev/null || true)"
+    if [ "$pk" != "$expected" ]; then
+        err "patatt.signingkey is '$pk', expected '$expected' — run --enable-signing"
+        exit 1
+    fi
+
+    local py
+    py="$(patatt_python)" || py=""
+    if [ -z "$py" ] || [ ! -x "$py" ]; then
+        echo "b4 not found — skipped the patatt check (install b4 to cover it)."
+        return 0
+    fi
+
+    # Any failure inside prints a diagnosis instead of a traceback: patatt's
+    # internals are not a stable API, so a version bump should degrade this
+    # check, not break the script.
+    "$py" - "$expected" <<'PYEOF'
+import sys
+
+expected = sys.argv[1]
+try:
+    import patatt
+except Exception as exc:
+    print(f"could not import patatt from b4's interpreter: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+msg = (b"From: test <test@example.com>\n"
+       b"Subject: [PATCH] patatt smoke test\n"
+       b"Message-Id: <patatt-smoke@example.invalid>\n"
+       b"Date: Mon, 1 Jan 2024 00:00:00 +0000\n"
+       b"\n"
+       b"body\n")
+
+try:
+    signed = patatt.rfc2822_sign(msg)
+except Exception as exc:
+    print(f"patatt failed to sign: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+if b"X-Developer-Signature" not in signed:
+    print("patatt produced no X-Developer-Signature header", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    results = patatt.validate_message(
+        signed, ['ref:::.keys', 'ref:::.local-keys', 'ref::refs/meta/keyring:'])
+except Exception as exc:
+    print(f"signed, but could not validate (patatt API change?): {exc}", file=sys.stderr)
+    sys.exit(2)
+
+# Each result is (code, identity, timestamp, keysrc, algo, errors); 0 is good.
+for code, identity, _ts, keysrc, algo, errors in results:
+    if code != 0:
+        print(f"patatt validation failed: {errors}", file=sys.stderr)
+        sys.exit(1)
+    print(f"patatt signed and verified as {identity} via {algo} using {keysrc}")
+PYEOF
+
+    local rc=$?
+    if [ $rc -eq 0 ]; then
+        echo "b4 will sign with this key."
+    elif [ $rc -eq 2 ]; then
+        echo "patatt signed but self-validation could not run — see above." >&2
+    else
+        err "the patatt path is broken even though plain gpg signing works"
+        exit 1
+    fi
+}
+
+case "${1:---check}" in
+    --check)           cmd_check ;;
+    --publish)         cmd_publish ;;
+    --export)          cmd_export "${2:-}" ;;
+    --import)          cmd_import "${2:-}" ;;
+    --enable-signing)  cmd_enable_signing ;;
+    --test)            cmd_test ;;
+    -h|--help)         usage ;;
+    *)                 usage >&2; exit 1 ;;
+esac

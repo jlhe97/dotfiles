@@ -26,6 +26,10 @@ error() {
 }
 
 # Files and directories to uninstall
+#
+# Note the two ~/.gnupg entries are individual files. The directory itself is
+# deliberately NOT a target: it holds the OpenPGP keyring, which this repo did
+# not create and must never delete.
 TARGETS=(
     "$HOME/.tmux.conf"
     "$HOME/.vimrc"
@@ -39,6 +43,8 @@ TARGETS=(
     "$HOME/.notmuch-config"
     "$HOME/.neomutt/macos.rc"
     "$HOME/.neomutt/linux.rc"
+    "$HOME/.gnupg/gpg.conf"
+    "$HOME/.gnupg/gpg-agent.conf"
     "$HOME/.claude/skills"
     "$HOME/bin"
 )
@@ -193,6 +199,12 @@ main() {
     info "Uninstallation complete!"
     echo ""
     echo "To restore backups, check ~/.dotfiles_backup_* directories"
+    echo ""
+    echo "Note: the OpenPGP keyring in ~/.gnupg was left untouched, as were the"
+    echo "git settings install.sh wrote (sendemail.*, signing). Undo those with:"
+    echo "  git config --global --unset-all patatt.signingkey"
+    echo "  git config --global --unset-all user.signingKey"
+    echo "  git config --global --remove-section 'credential.smtp://smtp.fastmail.com:587'"
     echo "=========================================="
 }
 
