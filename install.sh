@@ -721,7 +721,10 @@ main() {
         echo "Port 993"
         echo "User $USER_EMAIL"
         echo "PassCmd \"\$HOME/bin/mail-pass\""
-        echo "TLSType IMAPS"
+        # SSLType, not the newer TLSType alias: Ubuntu 24.04's isync (1.4.4)
+        # predates the 1.5.0 rename and doesn't recognize TLSType at all.
+        # SSLType still works on newer isync too (deprecated, but functional).
+        echo "SSLType IMAPS"
         echo "AuthMechs LOGIN"
         echo ""
         echo "IMAPStore fastmail-remote"
