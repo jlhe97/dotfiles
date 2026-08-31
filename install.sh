@@ -539,7 +539,7 @@ install_nvim_plugins() {
             https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
     fi
     info "Installing nvim plugins..."
-    nvim --headless +"PlugInstall --sync" +qall 2>/dev/null
+    nvim --headless +"PlugInstall --sync" +qall
     info "nvim plugins installed"
 }
 
