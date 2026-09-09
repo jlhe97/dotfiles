@@ -9,6 +9,7 @@
 .neomutt/local.rc
 .mbsyncrc
 .notmuch-config
+.signature
 # Generated per machine: holds the absolute path of this host's pinentry.
 .gnupg/gpg-agent.conf
 

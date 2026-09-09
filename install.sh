@@ -57,6 +57,7 @@ FILES=(
     ".gnupg/gpg-agent.conf"
     ".zshrc.local"
     ".slconfig"
+    ".signature"
 )
 
 # Directories to install (relative to dotfiles directory)
@@ -710,6 +711,15 @@ main() {
             if [ -n "$ca_line" ]; then echo "$ca_line"; fi
         } > "$local_rc"
         info "Written .neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
+    fi
+
+    # Signature appended to outgoing mail.
+    local signature="$DOTFILES_DIR/.signature"
+    if [ -s "$signature" ]; then
+        info "Using existing .signature"
+    else
+        printf '%s\n' "$USER_NAME" > "$signature"
+        info "Written .signature for $USER_NAME"
     fi
 
     # Generate ~/.mbsyncrc (gitignored; contains email). Password comes from

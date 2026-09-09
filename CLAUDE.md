@@ -88,6 +88,7 @@ System operations that touch the real host (package managers, chsh, oh-my-zsh do
 - `.neomutt/local.rc` — `imap_user`/`from`/`real_name`/`smtp_url`/`nm_default_url` (sourced by the platform rc; its write-guard requires all three of `real_name`, `imap_user`, `nm_default_url` to be present before skipping the rewrite).
 - `.mbsyncrc` — mbsync IMAP→maildir config; password via `PassCmd "$HOME/bin/mail-pass"`.
 - `.notmuch-config` — notmuch database path + identity.
+- `.signature` — mail signature, just `$USER_NAME`. Unlike the three above it is written **only when missing or empty**, never regenerated: it is prose meant to be hand-edited. `.neomuttrc` points `$signature` at it and sets `sig_dashes`, so the `-- ` delimiter is not stored in the file.
 
 `configure_git()` and `configure_sapling()` set `user.name`/`user.email` globally; both are idempotent (skip if already matching).
 

@@ -41,6 +41,7 @@ TARGETS=(
     "$HOME/.slconfig"
     "$HOME/.mbsyncrc"
     "$HOME/.notmuch-config"
+    "$HOME/.signature"
     "$HOME/.neomutt/macos.rc"
     "$HOME/.neomutt/linux.rc"
     "$HOME/.gnupg/gpg.conf"
