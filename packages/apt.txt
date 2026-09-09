@@ -34,3 +34,5 @@ bear
 rustc
 cargo
 rust-src
+bats
+shellcheck

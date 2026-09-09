@@ -26,3 +26,5 @@ cargo
 rust-analyzer
 rust-src
 clippy
+bats
+ShellCheck
