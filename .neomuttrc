@@ -103,3 +103,8 @@ bind pager G bottom
 
 # Switch notmuch vfolders
 bind index,pager X change-vfolder
+
+# signature
+set signature = "~/.signature"
+set sig_dashes = yes
+set sig_on_top = no

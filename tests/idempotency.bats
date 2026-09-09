@@ -141,6 +141,32 @@ _install() {
   [[ "$content" == *"new@example.com"* ]]
 }
 
+@test "signature is created from the installed name and symlinked" {
+  _install
+
+  [ "$(cat "$FAKE_DOTFILES/.signature")" = "Test User" ]
+  [ -L "$TEST_HOME/.signature" ]
+  [ "$(readlink "$TEST_HOME/.signature")" = "$FAKE_DOTFILES/.signature" ]
+}
+
+@test "an edited signature survives a reinstall" {
+  _install
+  printf 'Test User\nhttps://example.com\n' > "$FAKE_DOTFILES/.signature"
+
+  main --name "New User" --email "new@example.com"
+
+  # Prose, not generated config: the new identity must not clobber the edits.
+  [ "$(cat "$FAKE_DOTFILES/.signature")" = "$(printf 'Test User\nhttps://example.com')" ]
+}
+
+@test "an empty signature file is filled in rather than left blank" {
+  : > "$FAKE_DOTFILES/.signature"
+
+  _install
+
+  [ "$(cat "$FAKE_DOTFILES/.signature")" = "Test User" ]
+}
+
 @test "install continues and creates symlinks even when a tool install fails" {
   install_via_packagefile() { return 1; }
 
