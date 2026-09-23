@@ -1,3 +1,8 @@
 #!/bin/bash
-"$(dirname "$0")/mail-sync" 2>/dev/null
-exec neomutt "$@"
+sync="$(dirname "$0")/mail-sync"
+
+"$sync" 2>/dev/null
+neomutt "$@"
+status=$?
+"$sync" 2>/dev/null
+exit "$status"
