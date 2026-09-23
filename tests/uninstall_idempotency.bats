@@ -19,7 +19,7 @@ setup() {
     "$FAKE_DOTFILES/.config/clangd" \
     "$FAKE_DOTFILES/.claude/skills" \
     "$FAKE_DOTFILES/bin"
-  for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .zshrc.local .slconfig; do
+  for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .zshrc.local .slconfig .ripgreprc; do
     touch "$FAKE_DOTFILES/$f"
   done
   touch \

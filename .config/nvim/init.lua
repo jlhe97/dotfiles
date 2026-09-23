@@ -100,6 +100,19 @@ vim.keymap.set('n', '<C-p>', ':Files<CR>', { silent = true })        -- fuzzy fi
 vim.keymap.set('n', '<leader>fg', ':Rg<CR>', { silent = true })      -- grep file contents
 vim.keymap.set('n', '<leader>fb', ':Buffers<CR>', { silent = true }) -- open buffers
 
+-- ripgrep settings
+vim.opt.grepprg = 'rg --vimgrep'
+vim.opt.grepformat = '%f:%l:%c:%m'
+
+vim.api.nvim_create_autocmd('QuickFixCmdPost', {
+  pattern = 'grep',
+  command = 'cwindow',
+})
+
+vim.keymap.set('n', ']q', ':cnext<CR>', { silent = true })
+vim.keymap.set('n', '[q', ':cprevious<CR>', { silent = true })
+vim.keymap.set('n', '<leader>qf', ':copen<CR>', { silent = true })
+
 -- LSP settings
 local on_attach = function(client, bufnr)
   local opts = { noremap=true, silent=true, buffer=bufnr }

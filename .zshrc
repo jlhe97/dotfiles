@@ -95,6 +95,7 @@ fi
 # out of the box (the Cargo-style "just works" experience). For Make projects
 # use `bear -- make`; for the kernel use `make compile_commands.json`.
 export CMAKE_EXPORT_COMPILE_COMMANDS=ON
+export RIPGREP_CONFIG_PATH="$HOME/.ripgreprc"
 
 # Set personal aliases, overriding those provided by Oh My Zsh libs,
 # plugins, and themes. Aliases can be placed here, though Oh My Zsh

@@ -1,0 +1,11 @@
+# Lowercase search == case insensitive. Uppercase == case sensitive
+--smart-case
+
+# ignore .git files
+--hidden
+--glob=!.git/
+
+# One minified or generated line should not flood the terminal. The preview
+# keeps a truncated version of the line visible instead of dropping it.
+--max-columns=200
+--max-columns-preview
