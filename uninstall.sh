@@ -39,6 +39,7 @@ TARGETS=(
     "$HOME/.zshrc"
     "$HOME/.neomuttrc"
     "$HOME/.slconfig"
+    "$HOME/.ripgreprc"
     "$HOME/.mbsyncrc"
     "$HOME/.notmuch-config"
     "$HOME/.signature"

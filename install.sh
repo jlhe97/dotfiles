@@ -58,6 +58,7 @@ FILES=(
     ".zshrc.local"
     ".slconfig"
     ".signature"
+    ".ripgreprc"
 )
 
 # Directories to install (relative to dotfiles directory)
