@@ -49,13 +49,13 @@ set maildir_header_cache_verify = no
 set nm_db_limit = 500
 
 # syntax highlighting
-color body green default "^[+].*"
-color body red default "^-.*"
-color body cyan default "^@@.*"
-color body brightyellow default "^diff.*"
-color body brightyellow default "^index.*"
-color body brightyellow default "^---.*"
-color body brightyellow default "^[+][+][+].*"
+color body green default "^[+]($|[^+ ].*| ([^[:alnum:]\`'\"(].*)?$)"
+color body red default "^-($|[^- ].*| ([^[:alnum:]\`'\"(].*)?$)"
+color body cyan default "^@@ -[0-9].*"
+color body brightyellow default "^diff --git .*"
+color body brightyellow default "^index [0-9a-f]+[.][.][0-9a-f]+.*"
+color body brightyellow default "^(--- |[+][+][+] ).*"
+color body brightyellow default "^---$"
 color body magenta default "^commit [0-9a-f]+"
 color body blue default "^(Author|Date):.*"
 color body brightblue default "^Subject:.*"
