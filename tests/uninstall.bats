@@ -291,3 +291,52 @@ remove_dotfile_symlinks() {
   DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   [[ "$captured" == *"command failed"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# remove_mail_services
+# ---------------------------------------------------------------------------
+
+@test "remove_mail_services deletes the generated bridge files" {
+  mkdir -p "$TEST_HOME/.config/stunnel" "$TEST_HOME/.local/state"
+  touch "$TEST_HOME/.config/stunnel/fastmail.conf" \
+        "$TEST_HOME/.local/state/stunnel-fastmail.log" \
+        "$TEST_HOME/.msmtprc"
+
+  run remove_mail_services
+  [ "$status" -eq 0 ]
+  [ ! -e "$TEST_HOME/.config/stunnel/fastmail.conf" ]
+  [ ! -e "$TEST_HOME/.local/state/stunnel-fastmail.log" ]
+  [ ! -e "$TEST_HOME/.msmtprc" ]
+}
+
+@test "remove_mail_services removes the systemd user units" {
+  local stub="$TEST_HOME/stub"
+  mkdir -p "$stub" "$TEST_HOME/.config/systemd/user"
+  printf '#!/bin/sh\nexit 0\n' > "$stub/systemctl"
+  printf '#!/bin/sh\necho Linux\n' > "$stub/uname"
+  chmod +x "$stub/systemctl" "$stub/uname"
+  touch "$TEST_HOME/.config/systemd/user/stunnel-fastmail.service" \
+        "$TEST_HOME/.config/systemd/user/mail-sync.timer" \
+        "$TEST_HOME/.config/systemd/user/mail-sync.service"
+
+  PATH="$stub:$PATH" run remove_mail_services
+  [ "$status" -eq 0 ]
+  [ ! -e "$TEST_HOME/.config/systemd/user/stunnel-fastmail.service" ]
+  [ ! -e "$TEST_HOME/.config/systemd/user/mail-sync.timer" ]
+  [ ! -e "$TEST_HOME/.config/systemd/user/mail-sync.service" ]
+}
+
+@test "remove_mail_services is a no-op when nothing was installed" {
+  run remove_mail_services
+  [ "$status" -eq 0 ]
+}
+
+@test "remove_mail_services leaves the stored password and local mail alone" {
+  mkdir -p "$TEST_HOME/.local/state" "$TEST_HOME/Mail/fastmail"
+  touch "$TEST_HOME/.local/state/mail-pass.cred" "$TEST_HOME/Mail/fastmail/keep"
+
+  run remove_mail_services
+  [ "$status" -eq 0 ]
+  [ -e "$TEST_HOME/.local/state/mail-pass.cred" ]
+  [ -e "$TEST_HOME/Mail/fastmail/keep" ]
+}

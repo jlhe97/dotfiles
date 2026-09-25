@@ -12,6 +12,7 @@ RUN chown -R testuser:testuser /home/testuser
 USER testuser
 ENV HOME=/home/testuser
 
+ENV MAIL_MODE=direct
 RUN ./install.sh --name "Test User" --email "test@example.com"
 
 # Verify packages installed via packages/pacman.txt
