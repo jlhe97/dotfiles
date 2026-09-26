@@ -104,6 +104,9 @@ jobs:
         run: |
           set -euo pipefail
           brew install stunnel
+          # The copy lives in /tmp, so install.sh resolves DOTFILES_DIR there and
+          # cannot find bin/mail-provider. Point it back at the checkout.
+          export MAIL_PROVIDER_FILE="$PWD/bin/mail-provider"
           grep -v '^set -e' install.sh | grep -v '^main ' > /tmp/install-fns.sh
           # shellcheck disable=SC1091
           source /tmp/install-fns.sh

@@ -64,7 +64,7 @@ else
     unit_path="$unit_path$HOME/bin:/usr/local/bin:/usr/bin:/bin"
     cat > "$unit_dir/mail-sync.service" <<EOF
 [Unit]
-Description=Sync Fastmail into the local notmuch database
+Description=Sync mail into the local notmuch database
 
 [Service]
 Type=oneshot

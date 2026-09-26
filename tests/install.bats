@@ -12,6 +12,7 @@ setup() {
 
   # Source install.sh functions without triggering `set -e` or `main "$@"`.
   local tmpfile
+  export MAIL_PROVIDER_FILE="$DOTFILES_DIR/bin/mail-provider"
   tmpfile="$(mktemp)"
   grep -v '^set -e' "$DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
   # shellcheck disable=SC1090
@@ -972,8 +973,8 @@ _mock_gpg_with_key() {
   cat > "$MOCK_BIN/gpg" << 'EOF'
 #!/bin/bash
 if [[ "$*" == *"--list-secret-keys"* ]]; then
-  echo "sec:u:255:22:6FF739276A6BB0D9:1775692800:::u:::scESC:::+:::23::0:"
-  echo "fpr:::::::::48E9148428957881DD2558116FF739276A6BB0D9:"
+  echo "sec:u:255:22:89ABCDEF01234567:1775692800:::u:::scESC:::+:::23::0:"
+  echo "fpr:::::::::0123456789ABCDEF0123456789ABCDEF01234567:"
   echo "uid:u::::1775692800::ABC::Test User <test@example.com>::::::::::0:"
 fi
 exit 0
@@ -1018,7 +1019,7 @@ _mock_gpg_no_key() {
 
   export PATH="$orig_path"
   [ "$status" -eq 0 ]
-  [ "$output" = "48E9148428957881DD2558116FF739276A6BB0D9" ]
+  [ "$output" = "0123456789ABCDEF0123456789ABCDEF01234567" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -1137,8 +1138,8 @@ _setup_git_fixture() {
 
   export PATH="$orig_path"
   [ "$status" -eq 0 ]
-  [ "$(git config --global --get user.signingKey)" = "48E9148428957881DD2558116FF739276A6BB0D9" ]
-  [ "$(git config --global --get patatt.signingkey)" = "openpgp:48E9148428957881DD2558116FF739276A6BB0D9" ]
+  [ "$(git config --global --get user.signingKey)" = "0123456789ABCDEF0123456789ABCDEF01234567" ]
+  [ "$(git config --global --get patatt.signingkey)" = "openpgp:0123456789ABCDEF0123456789ABCDEF01234567" ]
 }
 
 @test "configure_patch_signing clears the historical b4 no-sign opt-out" {
@@ -1183,7 +1184,7 @@ _setup_git_fixture() {
 
   export PATH="$orig_path"
   [ "$(git config --global --get-all user.signingKey | wc -l | tr -d ' ')" = "1" ]
-  [ "$(git config --global --get patatt.signingkey)" = "openpgp:48E9148428957881DD2558116FF739276A6BB0D9" ]
+  [ "$(git config --global --get patatt.signingkey)" = "openpgp:0123456789ABCDEF0123456789ABCDEF01234567" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -1420,4 +1421,51 @@ setup_bridge_stubs() {
   [ -f "$TEST_HOME/.config/stunnel/fastmail.conf" ]
   [ -f "$TEST_HOME/.msmtprc" ]
   [[ "$output" == *"no user service manager"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# provider genericity
+# ---------------------------------------------------------------------------
+
+@test "mail-provider derives every name from MAIL_PROVIDER" {
+  run bash -c "MAIL_PROVIDER=posteo HOME='$TEST_HOME' . '$DOTFILES_DIR/bin/mail-provider'; \
+    printf '%s|%s|%s|%s' \"\$MAIL_DIR\" \"\$MAIL_SECRET_SERVICE\" \"\$MAIL_BRIDGE_NAME\" \"\$MAIL_BRIDGE_CONF\""
+  [ "$status" -eq 0 ]
+  [ "$output" = "$TEST_HOME/Mail/posteo|posteo-imap|stunnel-posteo|$TEST_HOME/.config/stunnel/posteo.conf" ]
+}
+
+@test "mail-provider defaults reproduce the fastmail setup" {
+  run bash -c "HOME='$TEST_HOME' . '$DOTFILES_DIR/bin/mail-provider'; \
+    printf '%s|%s|%s' \"\$MAIL_IMAP_HOST\" \"\$MAIL_SMTP_HOST\" \"\$MAIL_SECRET_SERVICE\""
+  [ "$status" -eq 0 ]
+  [ "$output" = "imap.fastmail.com|smtp.fastmail.com|fastmail-imap" ]
+}
+
+@test "configure_mail_bridge follows the configured provider, not a hardcoded host" {
+  setup_bridge_stubs
+  _mock_uname Linux
+  printf '#!/bin/sh\nexit 0\n' > "$MOCK_BIN/msmtp"
+  chmod +x "$MOCK_BIN/msmtp"
+
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    MAIL_PROVIDER=posteo \
+    MAIL_IMAP_HOST=posteo.de MAIL_SMTP_HOST=posteo.de \
+    MAIL_BRIDGE_NAME=stunnel-posteo \
+    MAIL_BRIDGE_CONF="$TEST_HOME/.config/stunnel/posteo.conf" \
+    MAIL_BRIDGE_LOG="$TEST_HOME/.local/state/stunnel-posteo.log" \
+    run configure_mail_bridge "user@posteo.de"
+  [ "$status" -eq 0 ]
+
+  local conf="$TEST_HOME/.config/stunnel/posteo.conf"
+  [ -f "$conf" ]
+  grep -q '^\[posteo-imap\]' "$conf"
+  grep -q '^\[posteo-smtp\]' "$conf"
+  grep -q '^protocolHost = posteo.de:993' "$conf"
+  grep -q '^protocolHost = posteo.de:465' "$conf"
+  grep -q '^checkHost = posteo.de' "$conf"
+  ! grep -qi fastmail "$conf"
+
+  [ -f "$TEST_HOME/.config/systemd/user/stunnel-posteo.service" ]
+  grep -q '^account posteo' "$TEST_HOME/.msmtprc"
+  ! grep -qi fastmail "$TEST_HOME/.msmtprc"
 }

@@ -20,6 +20,7 @@ setup() {
 
   # Source uninstall.sh functions without triggering `set -e` or `main "$@"`.
   local tmpfile
+  export MAIL_PROVIDER_FILE="$DOTFILES_DIR/bin/mail-provider"
   tmpfile="$(mktemp)"
   grep -v '^set -e' "$DOTFILES_DIR/uninstall.sh" | grep -v '^main ' > "$tmpfile"
   # shellcheck disable=SC1090
@@ -350,11 +351,11 @@ _stub_service_managers() {
 
 @test "remove_mail_services leaves the stored password and local mail alone" {
   _stub_service_managers
-  mkdir -p "$TEST_HOME/.local/state" "$TEST_HOME/Mail/fastmail"
-  touch "$TEST_HOME/.local/state/mail-pass.cred" "$TEST_HOME/Mail/fastmail/keep"
+  mkdir -p "$TEST_HOME/.local/state" "$MAIL_DIR"
+  touch "$MAIL_CRED_FILE" "$MAIL_DIR/keep"
 
   run remove_mail_services
   [ "$status" -eq 0 ]
-  [ -e "$TEST_HOME/.local/state/mail-pass.cred" ]
-  [ -e "$TEST_HOME/Mail/fastmail/keep" ]
+  [ -e "$MAIL_CRED_FILE" ]
+  [ -e "$MAIL_DIR/keep" ]
 }
