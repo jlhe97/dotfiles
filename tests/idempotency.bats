@@ -11,6 +11,7 @@ DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 setup() {
   TEST_HOME="$(mktemp -d)"
   export HOME="$TEST_HOME"
+  export MAIL_MODE=direct
 
   # Isolated fake dotfiles dir inside TEST_HOME so main() never touches
   # the real repository files.
@@ -33,6 +34,7 @@ setup() {
 
   # Source install functions without running main or set -e.
   local tmpfile
+  export MAIL_PROVIDER_FILE="$DOTFILES_DIR/bin/mail-provider"
   tmpfile="$(mktemp)"
   grep -v '^set -e' "$DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
   # shellcheck disable=SC1090

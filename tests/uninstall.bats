@@ -9,8 +9,18 @@ setup() {
   TEST_HOME="$(mktemp -d)"
   export HOME="$TEST_HOME"
 
+  # remove_mail_services drives systemctl/launchctl, and main() calls it.
+  # Unstubbed those reach the real user session and stop the developer's own
+  # running services, so stub them for every test in this file.
+  mkdir -p "$TEST_HOME/stub"
+  printf '#!/bin/sh\nexit 0\n' > "$TEST_HOME/stub/systemctl"
+  printf '#!/bin/sh\nexit 1\n' > "$TEST_HOME/stub/launchctl"
+  chmod +x "$TEST_HOME/stub/systemctl" "$TEST_HOME/stub/launchctl"
+  export PATH="$TEST_HOME/stub:$PATH"
+
   # Source uninstall.sh functions without triggering `set -e` or `main "$@"`.
   local tmpfile
+  export MAIL_PROVIDER_FILE="$DOTFILES_DIR/bin/mail-provider"
   tmpfile="$(mktemp)"
   grep -v '^set -e' "$DOTFILES_DIR/uninstall.sh" | grep -v '^main ' > "$tmpfile"
   # shellcheck disable=SC1090
@@ -290,4 +300,62 @@ remove_dotfile_symlinks() {
   export PATH="$orig_path"
   DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   [[ "$captured" == *"command failed"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# remove_mail_services
+# ---------------------------------------------------------------------------
+
+_stub_service_managers() {
+  printf '#!/bin/sh\necho Linux\n' > "$TEST_HOME/stub/uname"
+  chmod +x "$TEST_HOME/stub/uname"
+}
+
+@test "remove_mail_services deletes the generated bridge files" {
+  _stub_service_managers
+  mkdir -p "$TEST_HOME/.config/stunnel" "$TEST_HOME/.local/state"
+  touch "$TEST_HOME/.config/stunnel/fastmail.conf" \
+        "$TEST_HOME/.local/state/stunnel-fastmail.log" \
+        "$TEST_HOME/.msmtprc"
+
+  run remove_mail_services
+  [ "$status" -eq 0 ]
+  [ ! -e "$TEST_HOME/.config/stunnel/fastmail.conf" ]
+  [ ! -e "$TEST_HOME/.local/state/stunnel-fastmail.log" ]
+  [ ! -e "$TEST_HOME/.msmtprc" ]
+}
+
+@test "remove_mail_services removes the systemd user units" {
+  local stub="$TEST_HOME/stub"
+  mkdir -p "$stub" "$TEST_HOME/.config/systemd/user"
+  printf '#!/bin/sh\nexit 0\n' > "$stub/systemctl"
+  printf '#!/bin/sh\nexit 1\n' > "$stub/launchctl"
+  printf '#!/bin/sh\necho Linux\n' > "$stub/uname"
+  chmod +x "$stub/systemctl" "$stub/launchctl" "$stub/uname"
+  touch "$TEST_HOME/.config/systemd/user/stunnel-fastmail.service" \
+        "$TEST_HOME/.config/systemd/user/mail-sync.timer" \
+        "$TEST_HOME/.config/systemd/user/mail-sync.service"
+
+  PATH="$stub:$PATH" run remove_mail_services
+  [ "$status" -eq 0 ]
+  [ ! -e "$TEST_HOME/.config/systemd/user/stunnel-fastmail.service" ]
+  [ ! -e "$TEST_HOME/.config/systemd/user/mail-sync.timer" ]
+  [ ! -e "$TEST_HOME/.config/systemd/user/mail-sync.service" ]
+}
+
+@test "remove_mail_services is a no-op when nothing was installed" {
+  _stub_service_managers
+  run remove_mail_services
+  [ "$status" -eq 0 ]
+}
+
+@test "remove_mail_services leaves the stored password and local mail alone" {
+  _stub_service_managers
+  mkdir -p "$TEST_HOME/.local/state" "$MAIL_DIR"
+  touch "$MAIL_CRED_FILE" "$MAIL_DIR/keep"
+
+  run remove_mail_services
+  [ "$status" -eq 0 ]
+  [ -e "$MAIL_CRED_FILE" ]
+  [ -e "$MAIL_DIR/keep" ]
 }

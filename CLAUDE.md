@@ -96,19 +96,19 @@ System operations that touch the real host (package managers, chsh, oh-my-zsh do
 
 ### Mail architecture
 
-Mail is **local**: `mbsync` (isync) pulls Fastmail into `~/Mail/fastmail`, `notmuch` indexes it for cross-folder threading, and neomutt reads the notmuch database (`virtual-mailboxes`). No live IMAP, no GPG in the mail path. The Fastmail app password lives in the OS secret store and is read by `bin/mail-pass`, used by both mbsync and neomutt SMTP: macOS Keychain (`security`), or on Linux the first of `secret-tool` (libsecret) or `keyctl` (kernel keyring, for headless boxes) that returns a non-empty secret. (`pass` was dropped: it drags gpg-agent and a passphrase prompt into the mail path.) Store or rotate the secret with `mail-pass --store`, check it with `mail-pass --check`. `bin/mail-sync` runs `mbsync -a && notmuch new`; `bin/mutt` runs it before launching neomutt. `bin/mail-timer` installs a periodic-sync timer for the current OS (launchd LaunchAgent on macOS, systemd `--user` timer on Linux); run it once per machine. (`bin/lei-sync` for kernel mailing lists is retained but no longer wired into the launch path.)
+Mail is **local**: `mbsync` (isync) pulls the configured provider into `$MAIL_DIR` (`~/Mail/<provider>`), `notmuch` indexes it for cross-folder threading, and neomutt reads the notmuch database (`virtual-mailboxes`). No live IMAP, no GPG in the mail path. The provider is defined in `bin/mail-provider` (defaults to Fastmail; override any value in `~/.config/dotfiles/mail.conf`, gitignored), and every other name — maildir, secret-store key, bridge unit — derives from it. The app password lives in the OS secret store and is read by `bin/mail-pass`, used by both mbsync and neomutt SMTP: macOS Keychain (`security`), or on Linux the first of `secret-tool` (libsecret), `systemd-creds` (host-key encrypted, the only option that survives a reboot) or `keyctl` (kernel keyring, lost on reboot) that returns a non-empty secret. (`pass` was dropped: it drags gpg-agent and a passphrase prompt into the mail path.) Store or rotate the secret with `mail-pass --store`, check it with `mail-pass --check`. `bin/mail-sync` runs `mbsync -a && notmuch new`; `bin/mutt` runs it before launching neomutt. `bin/mail-timer` installs a periodic-sync timer for the current OS (launchd LaunchAgent on macOS, systemd `--user` timer on Linux); run it once per machine. (`bin/lei-sync` for kernel mailing lists is retained but no longer wired into the launch path.)
 
 ### Patch signing & GnuPG
 
-Kernel patches are sent with `git send-email`/`b4` through Fastmail SMTP, and signed
-with OpenPGP key `48E9148428957881DD2558116FF739276A6BB0D9` (`juanlu@fastmail.com`),
+Kernel patches are sent with `git send-email`/`b4` through the provider's SMTP, and signed
+with OpenPGP key `5A4E25809AEC85AE1AEA4B39ED4BDCDCDAB29DD1` (`juanlu@fastmail.com`),
 published on keys.openpgp.org. The fingerprint is documented here on purpose: a copy
 under your own control is a second channel to check it against, which is the defence
 against a keyserver serving a spoofed key. Machine-specific identity still comes from
 `--name`/`--email` at install time, not from a committed file.
 
 `configure_patch_workflow()` in `install.sh` sets `sendemail.*`, installs a
-**URL-scoped** credential helper (`credential.smtp://smtp.fastmail.com:587.helper`)
+**URL-scoped** credential helper (`credential.smtp://$MAIL_SMTP_HOST:$MAIL_SMTP_PORT.helper`)
 that shells out to `bin/mail-pass`, and then calls `configure_patch_signing()`.
 Scoped rather than global so the machine's normal helper still serves GitHub.
 The helper has two values — an empty one first to reset anything inherited from a

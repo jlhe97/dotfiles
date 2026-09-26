@@ -8,9 +8,11 @@ DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 setup() {
   TEST_HOME="$(mktemp -d)"
   export HOME="$TEST_HOME"
+  export MAIL_MODE=direct
 
   # Source install.sh functions without triggering `set -e` or `main "$@"`.
   local tmpfile
+  export MAIL_PROVIDER_FILE="$DOTFILES_DIR/bin/mail-provider"
   tmpfile="$(mktemp)"
   grep -v '^set -e' "$DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
   # shellcheck disable=SC1090
@@ -1183,4 +1185,287 @@ _setup_git_fixture() {
   export PATH="$orig_path"
   [ "$(git config --global --get-all user.signingKey | wc -l | tr -d ' ')" = "1" ]
   [ "$(git config --global --get patatt.signingkey)" = "openpgp:48E9148428957881DD2558116FF739276A6BB0D9" ]
+}
+
+# ---------------------------------------------------------------------------
+# http_connect_proxy / mail_transport_mode / ca_bundle_file
+# ---------------------------------------------------------------------------
+
+@test "http_connect_proxy prefers PROXY_HOST_PORT from install.local" {
+  PROXY_HOST_PORT="from-local:3128" run http_connect_proxy
+  [ "$status" -eq 0 ]
+  [ "$output" = "from-local:3128" ]
+}
+
+@test "http_connect_proxy falls back to git http.proxy" {
+  git config --global http.proxy "from-git:8080"
+  PROXY_HOST_PORT="" run http_connect_proxy
+  [ "$status" -eq 0 ]
+  [ "$output" = "from-git:8080" ]
+}
+
+@test "http_connect_proxy falls back to the environment" {
+  PROXY_HOST_PORT="" https_proxy="from-env:8888" run http_connect_proxy
+  [ "$status" -eq 0 ]
+  [ "$output" = "from-env:8888" ]
+}
+
+@test "http_connect_proxy strips scheme and trailing slash" {
+  PROXY_HOST_PORT="" https_proxy="http://scheme.example:8080/" run http_connect_proxy
+  [ "$status" -eq 0 ]
+  [ "$output" = "scheme.example:8080" ]
+}
+
+@test "http_connect_proxy fails when the host has no proxy" {
+  PROXY_HOST_PORT="" https_proxy="" http_proxy="" run http_connect_proxy
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+}
+
+@test "mail_transport_mode reports direct when the mail server is reachable" {
+  printf '#!/bin/sh\nexit 0\n' > "$MOCK_BIN/openssl"
+  chmod +x "$MOCK_BIN/openssl"
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy:8080" run mail_transport_mode
+  [ "$status" -eq 0 ]
+  [ "$output" = "direct" ]
+}
+
+@test "mail_transport_mode reports bridge when unreachable but a proxy and stunnel exist" {
+  printf '#!/bin/sh\nexit 1\n' > "$MOCK_BIN/openssl"
+  printf '#!/bin/sh\nexit 0\n' > "$MOCK_BIN/stunnel"
+  chmod +x "$MOCK_BIN/openssl" "$MOCK_BIN/stunnel"
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy:8080" run mail_transport_mode
+  [ "$status" -eq 0 ]
+  [ "$output" = "bridge" ]
+}
+
+@test "mail_transport_mode falls back to direct when there is no proxy" {
+  printf '#!/bin/sh\nexit 1\n' > "$MOCK_BIN/openssl"
+  printf '#!/bin/sh\nexit 0\n' > "$MOCK_BIN/stunnel"
+  chmod +x "$MOCK_BIN/openssl" "$MOCK_BIN/stunnel"
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="" https_proxy="" http_proxy="" run mail_transport_mode
+  [ "$status" -eq 0 ]
+  [ "$output" = "direct" ]
+}
+
+@test "mail_transport_mode falls back to direct when stunnel is missing" {
+  printf '#!/bin/sh\nexit 1\n' > "$MOCK_BIN/openssl"
+  printf '#!/bin/sh\nexit 1\n' > "$MOCK_BIN/timeout"
+  chmod +x "$MOCK_BIN/openssl" "$MOCK_BIN/timeout"
+  PATH="$MOCK_BIN" PROXY_HOST_PORT="proxy:8080" run mail_transport_mode
+  [ "$status" -eq 0 ]
+  [ "$output" = "direct" ]
+}
+
+@test "ca_bundle_file honours the CA_BUNDLE_FILE override" {
+  local custom="$TEST_HOME/custom-ca.pem"
+  touch "$custom"
+  CA_BUNDLE_FILE="$custom" run ca_bundle_file
+  [ "$status" -eq 0 ]
+  [ "$output" = "$custom" ]
+}
+
+@test "ca_bundle_file ignores an override pointing at a missing file" {
+  CA_BUNDLE_FILE="$TEST_HOME/does-not-exist.pem" run ca_bundle_file
+  [ "$output" != "$TEST_HOME/does-not-exist.pem" ]
+}
+
+@test "ca_bundle_file returns an existing file whenever it reports success" {
+  run ca_bundle_file
+  if [ "$status" -eq 0 ]; then
+    [ -f "$output" ]
+  else
+    [ -z "$output" ]
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# configure_mail_bridge
+# ---------------------------------------------------------------------------
+
+setup_bridge_stubs() {
+  printf '#!/bin/sh\necho "systemctl $*" >> "%s/calls.log"\nexit 0\n' "$MOCK_BIN" > "$MOCK_BIN/systemctl"
+  printf '#!/bin/sh\necho "launchctl $*" >> "%s/calls.log"\nexit 0\n' "$MOCK_BIN" > "$MOCK_BIN/launchctl"
+  printf '#!/bin/sh\nexit 0\n' > "$MOCK_BIN/stunnel"
+  chmod +x "$MOCK_BIN/systemctl" "$MOCK_BIN/launchctl" "$MOCK_BIN/stunnel"
+
+  # Do not depend on the host having a PEM trust store: a minimal container has
+  # none, and macOS keeps its roots in the Keychain.
+  touch "$TEST_HOME/ca-bundle.pem"
+  export CA_BUNDLE_FILE="$TEST_HOME/ca-bundle.pem"
+}
+
+@test "configure_mail_bridge writes a stunnel config naming the discovered proxy" {
+  setup_bridge_stubs
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    run configure_mail_bridge "user@example.com"
+  [ "$status" -eq 0 ]
+
+  local conf="$TEST_HOME/.config/stunnel/fastmail.conf"
+  [ -f "$conf" ]
+  grep -q "^connect = proxy.example:8080" "$conf"
+  grep -q "^protocol = connect" "$conf"
+  grep -q "^protocolHost = imap.fastmail.com:993" "$conf"
+  grep -q "^protocolHost = smtp.fastmail.com:465" "$conf"
+}
+
+@test "configure_mail_bridge keeps upstream certificate verification on" {
+  setup_bridge_stubs
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    run configure_mail_bridge "user@example.com"
+  [ "$status" -eq 0 ]
+
+  local conf="$TEST_HOME/.config/stunnel/fastmail.conf"
+  [ "$(grep -c '^verifyChain = yes' "$conf")" -eq 2 ]
+  grep -q "^checkHost = imap.fastmail.com" "$conf"
+  grep -q "^checkHost = smtp.fastmail.com" "$conf"
+}
+
+@test "configure_mail_bridge binds loopback by name, never an IPv4 literal" {
+  setup_bridge_stubs
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    run configure_mail_bridge "user@example.com"
+  [ "$status" -eq 0 ]
+
+  local conf="$TEST_HOME/.config/stunnel/fastmail.conf"
+  grep -q "^accept = localhost:1993" "$conf"
+  grep -q "^accept = localhost:1465" "$conf"
+  ! grep -q "127.0.0.1" "$conf"
+}
+
+@test "configure_mail_bridge logs to a file rather than /dev/stderr" {
+  setup_bridge_stubs
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    run configure_mail_bridge "user@example.com"
+  [ "$status" -eq 0 ]
+  ! grep -q "^output = /dev/stderr" "$TEST_HOME/.config/stunnel/fastmail.conf"
+  grep -q "^output = .*stunnel-fastmail.log" "$TEST_HOME/.config/stunnel/fastmail.conf"
+}
+
+@test "configure_mail_bridge writes a private msmtprc pointing at the bridge" {
+  setup_bridge_stubs
+  printf '#!/bin/sh\nexit 0\n' > "$MOCK_BIN/msmtp"
+  chmod +x "$MOCK_BIN/msmtp"
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    run configure_mail_bridge "user@example.com"
+  [ "$status" -eq 0 ]
+
+  [ -f "$TEST_HOME/.msmtprc" ]
+  [ "$(_mode "$TEST_HOME/.msmtprc")" = "600" ]
+  grep -q "^host localhost" "$TEST_HOME/.msmtprc"
+  grep -q "^port 1465" "$TEST_HOME/.msmtprc"
+  grep -q "^from user@example.com" "$TEST_HOME/.msmtprc"
+  grep -q 'passwordeval "\$HOME/bin/mail-pass"' "$TEST_HOME/.msmtprc"
+}
+
+@test "configure_mail_bridge never writes a password into msmtprc" {
+  setup_bridge_stubs
+  printf '#!/bin/sh\nexit 0\n' > "$MOCK_BIN/msmtp"
+  chmod +x "$MOCK_BIN/msmtp"
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    run configure_mail_bridge "user@example.com"
+  [ "$status" -eq 0 ]
+  ! grep -qE "^password " "$TEST_HOME/.msmtprc"
+}
+
+@test "configure_mail_bridge installs and enables a systemd user unit on Linux" {
+  setup_bridge_stubs
+  printf '#!/bin/sh\necho Linux\n' > "$MOCK_BIN/uname"
+  chmod +x "$MOCK_BIN/uname"
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    run configure_mail_bridge "user@example.com"
+  [ "$status" -eq 0 ]
+
+  local unit="$TEST_HOME/.config/systemd/user/stunnel-fastmail.service"
+  [ -f "$unit" ]
+  grep -q "^ExecStart=.*stunnel .*fastmail.conf" "$unit"
+  grep -q "enable --now stunnel-fastmail.service" "$MOCK_BIN/calls.log"
+}
+
+@test "configure_mail_bridge installs a launchd agent on macOS" {
+  setup_bridge_stubs
+  printf '#!/bin/sh\necho Darwin\n' > "$MOCK_BIN/uname"
+  chmod +x "$MOCK_BIN/uname"
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    run configure_mail_bridge "user@example.com"
+  [ "$status" -eq 0 ]
+
+  local plist="$TEST_HOME/Library/LaunchAgents/com.jlhe.stunnel-fastmail.plist"
+  [ -f "$plist" ]
+  grep -q "<string>com.jlhe.stunnel-fastmail</string>" "$plist"
+  grep -q "fastmail.conf" "$plist"
+  grep -q "bootstrap" "$MOCK_BIN/calls.log"
+  [ ! -f "$TEST_HOME/.config/systemd/user/stunnel-fastmail.service" ]
+}
+
+@test "configure_mail_bridge is a no-op without a proxy" {
+  setup_bridge_stubs
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="" https_proxy="" http_proxy="" \
+    run configure_mail_bridge "user@example.com"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no proxy found"* ]]
+  [ ! -f "$TEST_HOME/.config/stunnel/fastmail.conf" ]
+}
+
+@test "configure_mail_bridge still writes msmtprc when no user service manager exists" {
+  setup_bridge_stubs
+  _mock_uname Linux
+  printf '#!/bin/sh\nexit 1\n' > "$MOCK_BIN/systemctl"
+  printf '#!/bin/sh\nexit 1\n' > "$MOCK_BIN/launchctl"
+  printf '#!/bin/sh\nexit 0\n' > "$MOCK_BIN/msmtp"
+  chmod +x "$MOCK_BIN/systemctl" "$MOCK_BIN/launchctl" "$MOCK_BIN/msmtp"
+
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    run configure_mail_bridge "user@example.com"
+  [ "$status" -eq 0 ]
+  [ -f "$TEST_HOME/.config/stunnel/fastmail.conf" ]
+  [ -f "$TEST_HOME/.msmtprc" ]
+  [[ "$output" == *"no user service manager"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# provider genericity
+# ---------------------------------------------------------------------------
+
+@test "mail-provider derives every name from MAIL_PROVIDER" {
+  run bash -c "MAIL_PROVIDER=posteo HOME='$TEST_HOME' . '$DOTFILES_DIR/bin/mail-provider'; \
+    printf '%s|%s|%s|%s' \"\$MAIL_DIR\" \"\$MAIL_SECRET_SERVICE\" \"\$MAIL_BRIDGE_NAME\" \"\$MAIL_BRIDGE_CONF\""
+  [ "$status" -eq 0 ]
+  [ "$output" = "$TEST_HOME/Mail/posteo|posteo-imap|stunnel-posteo|$TEST_HOME/.config/stunnel/posteo.conf" ]
+}
+
+@test "mail-provider defaults reproduce the fastmail setup" {
+  run bash -c "HOME='$TEST_HOME' . '$DOTFILES_DIR/bin/mail-provider'; \
+    printf '%s|%s|%s' \"\$MAIL_IMAP_HOST\" \"\$MAIL_SMTP_HOST\" \"\$MAIL_SECRET_SERVICE\""
+  [ "$status" -eq 0 ]
+  [ "$output" = "imap.fastmail.com|smtp.fastmail.com|fastmail-imap" ]
+}
+
+@test "configure_mail_bridge follows the configured provider, not a hardcoded host" {
+  setup_bridge_stubs
+  _mock_uname Linux
+  printf '#!/bin/sh\nexit 0\n' > "$MOCK_BIN/msmtp"
+  chmod +x "$MOCK_BIN/msmtp"
+
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    MAIL_PROVIDER=posteo \
+    MAIL_IMAP_HOST=posteo.de MAIL_SMTP_HOST=posteo.de \
+    MAIL_BRIDGE_NAME=stunnel-posteo \
+    MAIL_BRIDGE_CONF="$TEST_HOME/.config/stunnel/posteo.conf" \
+    MAIL_BRIDGE_LOG="$TEST_HOME/.local/state/stunnel-posteo.log" \
+    run configure_mail_bridge "user@posteo.de"
+  [ "$status" -eq 0 ]
+
+  local conf="$TEST_HOME/.config/stunnel/posteo.conf"
+  [ -f "$conf" ]
+  grep -q '^\[posteo-imap\]' "$conf"
+  grep -q '^\[posteo-smtp\]' "$conf"
+  grep -q '^protocolHost = posteo.de:993' "$conf"
+  grep -q '^protocolHost = posteo.de:465' "$conf"
+  grep -q '^checkHost = posteo.de' "$conf"
+  ! grep -qi fastmail "$conf"
+
+  [ -f "$TEST_HOME/.config/systemd/user/stunnel-posteo.service" ]
+  grep -q '^account posteo' "$TEST_HOME/.msmtprc"
+  ! grep -qi fastmail "$TEST_HOME/.msmtprc"
 }

@@ -26,17 +26,32 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# curl that works on locked-down work machines, where direct egress to github
-# is blocked and external traffic goes through a forward proxy (with
-# raw.githubusercontent.com allowlisted through it). Prefer the proxy when the
-# host ships a config helper for it, and fall back to a direct call for
-# laptops / unrestricted boxes.
+# shellcheck source=/dev/null
+[ -f "$DOTFILES_DIR/install.local" ] && . "$DOTFILES_DIR/install.local"
+
+MAIL_PROVIDER_FILE="${MAIL_PROVIDER_FILE:-$DOTFILES_DIR/bin/mail-provider}"
+# shellcheck source=/dev/null
+. "$MAIL_PROVIDER_FILE"
+
+# checking if env requires a proxy to spoke to the interwebz.
+http_connect_proxy() {
+    local p="${PROXY_HOST_PORT:-}"
+    [ -z "$p" ] && p="$(git config --global --get http.proxy 2>/dev/null || true)"
+    [ -z "$p" ] && p="${https_proxy:-${http_proxy:-}}"
+    [ -z "$p" ] && return 1
+    p="${p#*://}"
+    echo "${p%/}"
+}
+
 proxy_curl() {
-    if command -v fwdproxy-config &>/dev/null; then
-        # fwdproxy-config emits the right -x/cert flags for this host.
+    local proxy
+    if [ -n "${PROXY_CURL_ARGS_CMD:-}" ] && \
+       command -v "${PROXY_CURL_ARGS_CMD%% *}" &>/dev/null; then
         # shellcheck disable=SC2046
-        curl $(fwdproxy-config curl 2>/dev/null) "$@" && return 0
-        curl -x fwdproxy:8080 "$@" && return 0
+        curl $($PROXY_CURL_ARGS_CMD 2>/dev/null) "$@" && return 0
+    fi
+    if proxy="$(http_connect_proxy)"; then
+        curl -x "$proxy" "$@" && return 0
     fi
     curl "$@"
 }
@@ -190,7 +205,6 @@ install_neovim() {
     # binary, so linking bin/nvim into PATH is enough to find share/nvim/runtime.
     sudo tar -xzf "$tmp_tar" -C /usr/local/lib/nvim --strip-components=1
     sudo ln -sf /usr/local/lib/nvim/bin/nvim /usr/local/bin/nvim
-    rm -f "$tmp_tar"
 
     # hash -r: the shell may have cached the old /usr/bin/nvim from earlier steps.
     hash -r 2>/dev/null || true
@@ -238,7 +252,7 @@ configure_sapling() {
 # gpg-agent.conf is generated per machine while gpg.conf is a plain symlink.
 #
 # macOS: pinentry-mac gives a native dialog and can stash the passphrase in the
-# Keychain, matching where bin/mail-pass already keeps the Fastmail secret.
+# Keychain, matching where bin/mail-pass already keeps the mail secret.
 # Linux: a graphical prompt when there is a display to draw on, otherwise the
 # curses prompt -- the only one that works over ssh and on headless devservers.
 # The curses prompt needs GPG_TTY, which .zshrc exports.
@@ -384,10 +398,17 @@ configure_patch_workflow() {
 
     local email="$1"
 
-    git config --global sendemail.smtpserver     "smtp.fastmail.com"
-    git config --global sendemail.smtpserverport "587"
-    git config --global sendemail.smtpencryption "tls"
-    git config --global sendemail.smtpuser       "$email"
+    if [ "${MAIL_MODE:-direct}" = bridge ]; then
+        git config --global sendemail.smtpserver "$(command -v msmtp || echo /usr/bin/msmtp)"
+        git config --global --unset sendemail.smtpserverport 2>/dev/null || true
+        git config --global --unset sendemail.smtpencryption 2>/dev/null || true
+        git config --global --unset sendemail.smtpuser 2>/dev/null || true
+    else
+        git config --global sendemail.smtpserver     "$MAIL_SMTP_HOST"
+        git config --global sendemail.smtpserverport "587"
+        git config --global sendemail.smtpencryption "tls"
+        git config --global sendemail.smtpuser       "$email"
+    fi
 
     # sendemail.smtppass must stay unset. b4 only falls back to
     # `git credential fill` -- and so to bin/mail-pass -- when it finds this
@@ -404,7 +425,7 @@ configure_patch_workflow() {
     # without it git tries that one first and hands back a stale password.
     # Single-quoted on purpose: $1 and $HOME belong to the helper and must
     # reach git's config file unexpanded.
-    local scope='credential.smtp://smtp.fastmail.com:587.helper'
+    local scope="credential.smtp://$MAIL_SMTP_HOST:$MAIL_SMTP_PORT.helper"
     # shellcheck disable=SC2016  # not expanding is the whole point: git stores this verbatim
     local helper='!f() { test "$1" = get && echo "password=$($HOME/bin/mail-pass)"; }; f'
     local current expected
@@ -607,15 +628,227 @@ neomutt_ca_line() {
     command -v neomutt &>/dev/null || return 0
     neomutt -v 2>/dev/null | grep -qi gnutls || return 0
     local f
+    f="$(ca_bundle_file)" || return 0
+    echo "set ssl_ca_certificates_file = \"$f\""
+}
+
+ca_bundle_file() {
+    local f d
+    if [ -n "${CA_BUNDLE_FILE:-}" ] && [ -f "$CA_BUNDLE_FILE" ]; then
+        echo "$CA_BUNDLE_FILE"
+        return 0
+    fi
     for f in /etc/ssl/certs/ca-certificates.crt \
              /etc/pki/tls/certs/ca-bundle.crt \
              /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem; do
-        if [ -f "$f" ]; then
-            echo "set ssl_ca_certificates_file = \"$f\""
-            return 0
-        fi
+        [ -f "$f" ] && { echo "$f"; return 0; }
     done
-    return 0
+    # macOS keeps its roots in the Keychain and ships no PEM bundle, so ask
+    # OpenSSL where its own trust store lives. Covers Homebrew and any
+    # non-standard prefix without hard-coding one.
+    if command -v openssl &>/dev/null; then
+        d="$(openssl version -d 2>/dev/null | sed -n 's/^OPENSSLDIR: *"\(.*\)"$/\1/p')"
+        [ -n "$d" ] && [ -f "$d/cert.pem" ] && { echo "$d/cert.pem"; return 0; }
+    fi
+    return 1
+}
+
+MAIL_BRIDGE_IMAP_PORT=1993
+MAIL_BRIDGE_SMTP_PORT=1465
+
+# we probe if we can access directly or we need to go through a proxy bridge
+mail_transport_mode() {
+    if command -v openssl &>/dev/null && \
+       timeout 10 openssl s_client -connect "$MAIL_IMAP_HOST:$MAIL_IMAP_PORT" \
+            -brief </dev/null &>/dev/null; then
+        echo direct
+        return 0
+    fi
+    if http_connect_proxy >/dev/null 2>&1 && command -v stunnel &>/dev/null; then
+        echo bridge
+        return 0
+    fi
+    echo direct
+}
+
+configure_mail_bridge() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
+
+    local email="$1" proxy ca conf
+    proxy="$(http_connect_proxy)" || { warn "no proxy found — skipping mail bridge"; return 0; }
+    ca="$(ca_bundle_file)" || { warn "no CA bundle found — skipping mail bridge"; return 0; }
+
+    conf="$MAIL_BRIDGE_CONF"
+    mkdir -p "$(dirname "$conf")" "$HOME/.local/state"
+    {
+        echo "; Generated by install.sh — machine-specific, not committed."
+        echo "; TLS client that reaches $MAIL_PROVIDER through this host's HTTP CONNECT"
+        echo "; proxy. mbsync has no proxy support and msmtp's is SOCKS-only, so"
+        echo "; stunnel does the CONNECT and the TLS and hands each tool a plain"
+        echo "; socket on loopback."
+        echo "foreground = yes"
+        echo "; A real file, not /dev/stderr: under systemd --user that path does"
+        echo "; not resolve to anything stunnel can open and it exits 1 unbound."
+        echo "output = $MAIL_BRIDGE_LOG"
+        echo "pid ="
+        local svc local_port remote_port host
+        while read -r svc local_port remote_port; do
+            [ -n "$svc" ] || continue
+            case "$svc" in imap) host="$MAIL_IMAP_HOST" ;; *) host="$MAIL_SMTP_HOST" ;; esac
+            echo ""
+            echo "[$MAIL_PROVIDER-$svc]"
+            echo "client = yes"
+            echo "accept = localhost:$local_port"
+            echo "connect = $proxy"
+            echo "protocol = connect"
+            echo "protocolHost = $host:$remote_port"
+            echo "verifyChain = yes"
+            echo "CAfile = $ca"
+            echo "checkHost = $host"
+            echo "sni = $host"
+        done <<EOF
+imap $MAIL_BRIDGE_IMAP_PORT 993
+smtp $MAIL_BRIDGE_SMTP_PORT 465
+EOF
+    } > "$conf"
+    info "Written stunnel config for the mail bridge"
+
+    if [[ "$(uname)" == "Darwin" ]]; then
+        local label="com.jlhe.$MAIL_BRIDGE_NAME" plist
+        plist="$HOME/Library/LaunchAgents/$label.plist"
+        mkdir -p "$HOME/Library/LaunchAgents"
+        cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>$label</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$(command -v stunnel)</string>
+        <string>$conf</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+</dict>
+</plist>
+EOF
+        launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+        if launchctl bootstrap "gui/$(id -u)" "$plist"; then
+            info "Mail bridge running under launchd ($label)"
+        else
+            warn "could not load $label — start it with: launchctl bootstrap gui/\$(id -u) $plist"
+        fi
+    else
+        local unit_dir="$HOME/.config/systemd/user"
+        mkdir -p "$unit_dir"
+        cat > "$unit_dir/$MAIL_BRIDGE_NAME.service" <<EOF
+[Unit]
+Description=stunnel TLS bridge to $MAIL_PROVIDER via this host's HTTP proxy
+Documentation=man:stunnel(8)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=$(command -v stunnel) $conf
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+        if systemctl --user daemon-reload 2>/dev/null && \
+           systemctl --user enable --now "$MAIL_BRIDGE_NAME.service" 2>/dev/null; then
+            info "Mail bridge running under systemd ($MAIL_BRIDGE_NAME.service)"
+        else
+            warn "no user service manager here — start the bridge with: systemctl --user enable --now $MAIL_BRIDGE_NAME.service"
+        fi
+    fi
+
+    if command -v msmtp &>/dev/null; then
+        {
+            echo "# Generated by install.sh — machine-specific, not committed."
+            echo "# $MAIL_PROVIDER via the local stunnel bridge; see $MAIL_BRIDGE_CONF."
+            echo "# msmtp's own --proxy-host is SOCKS-only, so it cannot reach an"
+            echo "# HTTP CONNECT proxy by itself."
+            echo ""
+            echo "account $MAIL_PROVIDER"
+            echo "host localhost"
+            echo "port $MAIL_BRIDGE_SMTP_PORT"
+            echo "from $email"
+            echo "auth plain"
+            echo "user $email"
+            echo "# One secret, one store, one accessor — see bin/mail-pass."
+            echo "passwordeval \"\$HOME/bin/mail-pass\""
+            echo "# Nothing to protect on this hop: it is loopback, and stunnel has"
+            echo "# already terminated TLS against $MAIL_SMTP_HOST's certificate."
+            echo "tls off"
+            echo "logfile ~/.msmtp.log"
+            echo ""
+            echo "account default : $MAIL_PROVIDER"
+        } > "$HOME/.msmtprc"
+        chmod 600 "$HOME/.msmtprc"
+        info "Written ~/.msmtprc for $email"
+    else
+        warn "msmtp not installed — the bridge has no send path"
+    fi
+    trap - ERR
+}
+
+build_mail_tools_from_source() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
+
+    local missing=()
+    command -v notmuch &>/dev/null || missing+=(notmuch)
+    command -v neomutt &>/dev/null || missing+=(neomutt)
+    [ ${#missing[@]} -eq 0 ] && return 0
+
+    if ! command -v dnf &>/dev/null; then
+        warn "missing ${missing[*]} and no source build defined for this platform"
+        return 0
+    fi
+
+    info "Building from source (not packaged here): ${missing[*]}"
+    sudo dnf install -y gcc gcc-c++ make autoconf automake libtool \
+        gettext-devel ncurses-devel openssl-devel cyrus-sasl-devel \
+        libidn2-devel xapian-core-devel gmime30-devel glib2-devel \
+        libtalloc-devel zlib-devel gpgme-devel lmdb-devel gnupg2-smime \
+        || { warn "could not install build dependencies"; return 0; }
+
+    mkdir -p "$HOME/src"
+    local m
+    for m in "${missing[@]}"; do
+        case "$m" in
+            notmuch) [ -d "$HOME/src/notmuch" ] || \
+                proxy_git_clone https://git.notmuchmail.org/git/notmuch "$HOME/src/notmuch" ;;
+            neomutt) [ -d "$HOME/src/neomutt" ] || \
+                proxy_git_clone https://github.com/neomutt/neomutt "$HOME/src/neomutt" ;;
+        esac
+    done
+
+    if [[ " ${missing[*]} " == *" notmuch "* ]] && [ -d "$HOME/src/notmuch" ]; then
+        ( cd "$HOME/src/notmuch" && \
+          ./configure --prefix="$HOME/.local" --without-emacs --without-ruby \
+              --without-docs --without-api-docs --without-desktop && \
+          make -j"$(nproc)" && make install ) || warn "notmuch build failed"
+    fi
+    if [[ " ${missing[*]} " == *" neomutt "* ]] && [ -d "$HOME/src/neomutt" ]; then
+        ( cd "$HOME/src/neomutt" && \
+          LDFLAGS="-Wl,-rpath,$HOME/.local/lib" \
+          ./configure --prefix="$HOME/.local" --notmuch \
+              --with-notmuch="$HOME/.local" --ssl --sasl --gpgme --lmdb \
+              --disable-doc && \
+          make -j"$(nproc)" && make install ) || warn "neomutt build failed"
+    fi
+    trap - ERR
+}
+
+proxy_git_clone() {
+    local proxy url="$1" dest="$2"
+    if proxy="$(http_connect_proxy)"; then
+        git -c http.proxy="$proxy" clone --depth 1 "$url" "$dest" && return 0
+    fi
+    git clone --depth 1 "$url" "$dest"
 }
 
 main() {
@@ -678,6 +911,14 @@ main() {
         echo ""
     fi
 
+    MAIL_MODE="${MAIL_MODE:-$(mail_transport_mode)}"
+    if [ "$MAIL_MODE" = bridge ]; then
+        info "$MAIL_PROVIDER is not directly reachable — configuring a local TLS bridge"
+        configure_mail_bridge "$USER_EMAIL" || warn "mail bridge setup incomplete — check output above"
+    fi
+    build_mail_tools_from_source || warn "source build incomplete — check output above"
+    echo ""
+
     configure_git "$USER_NAME" "$USER_EMAIL" || true
     configure_sapling "$USER_NAME" "$USER_EMAIL" || true
     # Before the FILES loop: this generates .gnupg/gpg-agent.conf, which the
@@ -707,9 +948,26 @@ main() {
             echo "set imap_user = \"$USER_EMAIL\""
             echo "set from = \"$USER_EMAIL\""
             echo "set real_name = \"$USER_NAME\""
-            echo "set smtp_url = \"smtp://${USER_EMAIL}@smtp.fastmail.com:587/\""
-            echo "set nm_default_url = \"notmuch://$HOME/Mail/fastmail\""
+            if [ "${MAIL_MODE:-direct}" = bridge ]; then
+                echo "set sendmail = \"$(command -v msmtp || echo /usr/bin/msmtp)\""
+            else
+                echo "set smtp_url = \"smtp://${USER_EMAIL}@$MAIL_SMTP_HOST:$MAIL_SMTP_PORT/\""
+            fi
+            echo "set my_maildir = \"$MAIL_DIR\""
+            echo "set nm_default_url = \"notmuch://$MAIL_DIR\""
             if [ -n "$ca_line" ]; then echo "$ca_line"; fi
+            if command -v neomutt &>/dev/null && \
+               neomutt -Q header_cache_backend &>/dev/null; then
+                local hcb
+                hcb="$(neomutt -v 2>/dev/null | grep -oE '\+HAVE_(LMDB|GDBM|TOKYOCABINET|KYOTOCABINET|BDB)' | head -1)"
+                case "$hcb" in
+                    *LMDB*)          echo 'set header_cache_backend = "lmdb"' ;;
+                    *GDBM*)          echo 'set header_cache_backend = "gdbm"' ;;
+                    *TOKYOCABINET*)  echo 'set header_cache_backend = "tokyocabinet"' ;;
+                    *KYOTOCABINET*)  echo 'set header_cache_backend = "kyotocabinet"' ;;
+                    *BDB*)           echo 'set header_cache_backend = "bdb"' ;;
+                esac
+            fi
         } > "$local_rc"
         info "Written .neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
     fi
@@ -727,28 +985,37 @@ main() {
     # bin/mail-pass at sync time, so nothing secret is written here.
     local mbsyncrc="$DOTFILES_DIR/.mbsyncrc"
     {
-        echo "IMAPAccount fastmail"
-        echo "Host imap.fastmail.com"
-        echo "Port 993"
+        echo "IMAPAccount $MAIL_PROVIDER"
+        if [ "${MAIL_MODE:-direct}" = bridge ]; then
+            echo "Host localhost"
+            echo "Port $MAIL_BRIDGE_IMAP_PORT"
+        else
+            echo "Host $MAIL_IMAP_HOST"
+            echo "Port 993"
+        fi
         echo "User $USER_EMAIL"
         echo "PassCmd \"\$HOME/bin/mail-pass\""
-        # SSLType, not the newer TLSType alias: Ubuntu 24.04's isync (1.4.4)
-        # predates the 1.5.0 rename and doesn't recognize TLSType at all.
-        # SSLType still works on newer isync too (deprecated, but functional).
-        echo "SSLType IMAPS"
+        if [ "${MAIL_MODE:-direct}" = bridge ]; then
+            echo "SSLType None"
+        else
+            # SSLType, not the newer TLSType alias: Ubuntu 24.04's isync (1.4.4)
+            # predates the 1.5.0 rename and doesn't recognize TLSType at all.
+            # SSLType still works on newer isync too (deprecated, but functional).
+            echo "SSLType IMAPS"
+        fi
         echo "AuthMechs LOGIN"
         echo ""
-        echo "IMAPStore fastmail-remote"
-        echo "Account fastmail"
+        echo "IMAPStore $MAIL_PROVIDER-remote"
+        echo "Account $MAIL_PROVIDER"
         echo ""
-        echo "MaildirStore fastmail-local"
-        echo "Path ~/Mail/fastmail/"
-        echo "Inbox ~/Mail/fastmail/INBOX"
+        echo "MaildirStore $MAIL_PROVIDER-local"
+        echo "Path $MAIL_DIR/"
+        echo "Inbox $MAIL_DIR/INBOX"
         echo "Subfolders Verbatim"
         echo ""
-        echo "Channel fastmail"
-        echo "Far :fastmail-remote:"
-        echo "Near :fastmail-local:"
+        echo "Channel $MAIL_PROVIDER"
+        echo "Far :$MAIL_PROVIDER-remote:"
+        echo "Near :$MAIL_PROVIDER-local:"
         echo "Patterns *"
         echo "Create Both"
         echo "Expunge Both"
@@ -760,7 +1027,7 @@ main() {
     local notmuch_config="$DOTFILES_DIR/.notmuch-config"
     {
         echo "[database]"
-        echo "path=$HOME/Mail/fastmail"
+        echo "path=$MAIL_DIR"
         echo ""
         echo "[user]"
         echo "name=$USER_NAME"
@@ -840,14 +1107,14 @@ main() {
     echo "  - Run 'tmux source ~/.tmux.conf' to reload tmux config"
     echo ""
     echo "=========================================="
-    echo "       Fastmail Mail Setup (mbsync + notmuch)"
+    echo "       Mail Setup: $MAIL_PROVIDER (mbsync + notmuch)"
     echo "=========================================="
     echo ""
     echo "Mail syncs locally with mbsync and is indexed by notmuch; neomutt"
     echo "reads the local database. Finish setup on this machine:"
     echo ""
-    echo "1. Generate a Fastmail app-specific password:"
-    echo "   - https://www.fastmail.com/settings/security/tokens"
+    echo "1. Generate a $MAIL_PROVIDER app-specific password:"
+    echo "   - $MAIL_TOKEN_URL"
     echo "   - 'New App Password' -> 'Mail (IMAP/POP/SMTP)'"
     echo ""
     echo "2. Store it in your OS secret store:"
@@ -864,7 +1131,7 @@ main() {
     echo "       Kernel Patch Signing (gpg + b4)"
     echo "=========================================="
     echo ""
-    echo "git send-email and b4 are configured to send through Fastmail, taking"
+    echo "git send-email and b4 are configured to send through $MAIL_PROVIDER, taking"
     echo "the password from the same bin/mail-pass store as mbsync."
     echo ""
     echo "Patch signing turns itself on only when this machine holds the"

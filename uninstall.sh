@@ -7,6 +7,10 @@ set -e
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+MAIL_PROVIDER_FILE="${MAIL_PROVIDER_FILE:-$DOTFILES_DIR/bin/mail-provider}"
+# shellcheck source=/dev/null
+. "$MAIL_PROVIDER_FILE"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -119,6 +123,41 @@ uninstall_ohmyzsh() {
     fi
 }
 
+remove_mail_services() {
+    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
+    local f label
+
+    if [[ "$(uname)" == "Darwin" ]]; then
+        for label in "com.jlhe.$MAIL_BRIDGE_NAME" com.jlhe.mail-sync; do
+            if launchctl print "gui/$(id -u)/$label" &>/dev/null; then
+                launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+                info "Unloaded launchd agent: $label"
+            fi
+            f="$HOME/Library/LaunchAgents/$label.plist"
+            [ -f "$f" ] && { rm -f "$f"; info "Removed $f"; }
+        done
+    elif command -v systemctl &>/dev/null; then
+        local unit reloaded=false
+        for unit in "$MAIL_BRIDGE_NAME.service" mail-sync.timer mail-sync.service; do
+            systemctl --user disable --now "$unit" &>/dev/null || true
+            f="$HOME/.config/systemd/user/$unit"
+            if [ -f "$f" ]; then
+                rm -f "$f"
+                reloaded=true
+                info "Removed $f"
+            fi
+        done
+        [ "$reloaded" = true ] && { systemctl --user daemon-reload &>/dev/null || true; }
+    fi
+
+    for f in "$MAIL_BRIDGE_CONF" \
+             "$MAIL_BRIDGE_LOG" \
+             "$HOME/.msmtprc"; do
+        [ -e "$f" ] && { rm -f "$f"; info "Removed $f"; }
+    done
+    rmdir "$HOME/.config/stunnel" 2>/dev/null || true
+}
+
 restore_default_shell() {
     trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     local bash_path
@@ -176,6 +215,10 @@ main() {
 
     echo ""
 
+    remove_mail_services || warn "mail service removal incomplete — check output above"
+
+    echo ""
+
     if [ "$skip_packages" = true ]; then
         info "Skipping package uninstallation (--skip-packages)"
     else
@@ -206,7 +249,16 @@ main() {
     echo "git settings install.sh wrote (sendemail.*, signing). Undo those with:"
     echo "  git config --global --unset-all patatt.signingkey"
     echo "  git config --global --unset-all user.signingKey"
-    echo "  git config --global --remove-section 'credential.smtp://smtp.fastmail.com:587'"
+    echo "  git config --global --unset-all sendemail.smtpserver"
+    echo "  git config --global --remove-section 'credential.smtp://$MAIL_SMTP_HOST:$MAIL_SMTP_PORT'"
+    echo ""
+    echo "The stored mail password was also left in place. Remove it with:"
+    echo "  rm -f $MAIL_CRED_FILE"
+    echo "  keyctl unlink \"\$(keyctl search @u user $MAIL_SECRET_SERVICE)\" @u   # Linux"
+    echo "  security delete-generic-password -s $MAIL_SECRET_SERVICE             # macOS"
+    echo "  secret-tool clear service $MAIL_SECRET_SERVICE                       # desktop keyring"
+    echo ""
+    echo "Local mail in $MAIL_DIR and the notmuch index were left untouched."
     echo "=========================================="
 }
 
