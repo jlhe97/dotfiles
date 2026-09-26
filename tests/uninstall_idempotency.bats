@@ -31,6 +31,7 @@ setup() {
 
   # --- Source install.sh and run it to lay down symlinks ---
   local tmpfile
+  export MAIL_PROVIDER_FILE="$REAL_DOTFILES_DIR/bin/mail-provider"
   tmpfile="$(mktemp)"
   grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
   # shellcheck disable=SC1090

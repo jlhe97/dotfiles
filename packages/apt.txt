@@ -6,7 +6,7 @@ notmuch
 keyutils
 # libsecret-tools provides secret-tool, the desktop keyring backend bin/mail-pass
 # tries first on Linux. keyutils above is the headless fallback; a box with
-# neither has nowhere to put the Fastmail password.
+# neither has nowhere to put the mail password.
 libsecret-tools
 b4
 # GnuPG for signing patches sent with b4. pinentry-curses is the passphrase

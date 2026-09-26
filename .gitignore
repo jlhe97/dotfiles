@@ -37,3 +37,6 @@
 
 # Site-specific installer settings
 install.local
+
+# Mail provider overrides (personal choice of provider, not public).
+.config/dotfiles/mail.conf

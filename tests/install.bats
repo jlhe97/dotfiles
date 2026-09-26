@@ -12,6 +12,7 @@ setup() {
 
   # Source install.sh functions without triggering `set -e` or `main "$@"`.
   local tmpfile
+  export MAIL_PROVIDER_FILE="$DOTFILES_DIR/bin/mail-provider"
   tmpfile="$(mktemp)"
   grep -v '^set -e' "$DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
   # shellcheck disable=SC1090
@@ -1420,4 +1421,51 @@ setup_bridge_stubs() {
   [ -f "$TEST_HOME/.config/stunnel/fastmail.conf" ]
   [ -f "$TEST_HOME/.msmtprc" ]
   [[ "$output" == *"no user service manager"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# provider genericity
+# ---------------------------------------------------------------------------
+
+@test "mail-provider derives every name from MAIL_PROVIDER" {
+  run bash -c "MAIL_PROVIDER=posteo HOME='$TEST_HOME' . '$DOTFILES_DIR/bin/mail-provider'; \
+    printf '%s|%s|%s|%s' \"\$MAIL_DIR\" \"\$MAIL_SECRET_SERVICE\" \"\$MAIL_BRIDGE_NAME\" \"\$MAIL_BRIDGE_CONF\""
+  [ "$status" -eq 0 ]
+  [ "$output" = "$TEST_HOME/Mail/posteo|posteo-imap|stunnel-posteo|$TEST_HOME/.config/stunnel/posteo.conf" ]
+}
+
+@test "mail-provider defaults reproduce the fastmail setup" {
+  run bash -c "HOME='$TEST_HOME' . '$DOTFILES_DIR/bin/mail-provider'; \
+    printf '%s|%s|%s' \"\$MAIL_IMAP_HOST\" \"\$MAIL_SMTP_HOST\" \"\$MAIL_SECRET_SERVICE\""
+  [ "$status" -eq 0 ]
+  [ "$output" = "imap.fastmail.com|smtp.fastmail.com|fastmail-imap" ]
+}
+
+@test "configure_mail_bridge follows the configured provider, not a hardcoded host" {
+  setup_bridge_stubs
+  _mock_uname Linux
+  printf '#!/bin/sh\nexit 0\n' > "$MOCK_BIN/msmtp"
+  chmod +x "$MOCK_BIN/msmtp"
+
+  PATH="$MOCK_BIN:$PATH" PROXY_HOST_PORT="proxy.example:8080" \
+    MAIL_PROVIDER=posteo \
+    MAIL_IMAP_HOST=posteo.de MAIL_SMTP_HOST=posteo.de \
+    MAIL_BRIDGE_NAME=stunnel-posteo \
+    MAIL_BRIDGE_CONF="$TEST_HOME/.config/stunnel/posteo.conf" \
+    MAIL_BRIDGE_LOG="$TEST_HOME/.local/state/stunnel-posteo.log" \
+    run configure_mail_bridge "user@posteo.de"
+  [ "$status" -eq 0 ]
+
+  local conf="$TEST_HOME/.config/stunnel/posteo.conf"
+  [ -f "$conf" ]
+  grep -q '^\[posteo-imap\]' "$conf"
+  grep -q '^\[posteo-smtp\]' "$conf"
+  grep -q '^protocolHost = posteo.de:993' "$conf"
+  grep -q '^protocolHost = posteo.de:465' "$conf"
+  grep -q '^checkHost = posteo.de' "$conf"
+  ! grep -qi fastmail "$conf"
+
+  [ -f "$TEST_HOME/.config/systemd/user/stunnel-posteo.service" ]
+  grep -q '^account posteo' "$TEST_HOME/.msmtprc"
+  ! grep -qi fastmail "$TEST_HOME/.msmtprc"
 }
