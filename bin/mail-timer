@@ -56,12 +56,19 @@ EOF
 else
     unit_dir="$HOME/.config/systemd/user"
     mkdir -p "$unit_dir"
+    unit_path=""
+    for tool in mbsync notmuch; do
+        dir="$(command -v "$tool" 2>/dev/null)" || continue
+        [ -n "$dir" ] && unit_path="$unit_path$(dirname "$dir"):"
+    done
+    unit_path="$unit_path$HOME/bin:/usr/local/bin:/usr/bin:/bin"
     cat > "$unit_dir/mail-sync.service" <<EOF
 [Unit]
 Description=Sync Fastmail into the local notmuch database
 
 [Service]
 Type=oneshot
+Environment=PATH=$unit_path
 ExecStart=%h/bin/mail-sync
 EOF
     cat > "$unit_dir/mail-sync.timer" <<EOF

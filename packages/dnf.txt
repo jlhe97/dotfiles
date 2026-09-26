@@ -28,3 +28,6 @@ rust-src
 clippy
 bats
 ShellCheck
+# TLS bridge used only when this host cannot reach the mail server directly.
+stunnel
+msmtp

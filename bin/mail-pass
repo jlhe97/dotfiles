@@ -21,6 +21,7 @@
 set -uo pipefail
 
 SERVICE="fastmail-imap"
+CRED_FILE="$HOME/.local/state/mail-pass.cred"
 
 usage() {
     cat <<EOF
@@ -51,6 +52,11 @@ lookup() {
         [ -n "$secret" ] && { printf '%s' "$secret"; return 0; }
     fi
 
+    if [ -f "$CRED_FILE" ] && command -v systemd-creds &>/dev/null; then
+        secret="$(systemd-creds --user --name="$SERVICE" decrypt "$CRED_FILE" - 2>/dev/null || true)"
+        [ -n "$secret" ] && { printf '%s' "$secret"; return 0; }
+    fi
+
     if command -v keyctl &>/dev/null; then
         id="$(keyctl search @u user "$SERVICE" 2>/dev/null || true)"
         if [ -n "$id" ]; then
@@ -62,17 +68,50 @@ lookup() {
     return 1
 }
 
+systemd_creds_usable() {
+    command -v systemd-creds &>/dev/null || return 1
+    printf 'x' | systemd-creds --user --name=probe encrypt - - &>/dev/null
+}
+
+store_systemd_creds() {
+    mkdir -p "$(dirname "$CRED_FILE")"
+    printf '%s' "$1" | systemd-creds --user --name="$SERVICE" encrypt - "$CRED_FILE" 2>/dev/null \
+        || { echo "mail-pass: systemd-creds write failed" >&2; return 1; }
+    chmod 600 "$CRED_FILE"
+    echo "Stored as a systemd user credential ($CRED_FILE)."
+}
+
+secret_service_usable() {
+    command -v secret-tool &>/dev/null || return 1
+    command -v busctl &>/dev/null || return 1
+    [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || return 1
+    busctl --user call org.freedesktop.secrets /org/freedesktop/secrets \
+        org.freedesktop.DBus.Properties Get ss \
+        org.freedesktop.Secret.Service Collections 2>/dev/null \
+        | grep -q '/collection/login'
+}
+
 # Which backend can we write to on this host?
 backend() {
     if [[ "$(uname)" == "Darwin" ]]; then
         echo "keychain"
-    elif command -v secret-tool &>/dev/null && [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    elif secret_service_usable; then
         echo "secret-tool"
+    elif systemd_creds_usable; then
+        echo "systemd-creds"
     elif command -v keyctl &>/dev/null; then
         echo "keyctl"
     else
         echo "none"
     fi
+}
+
+store_keyctl() {
+    printf '%s' "$1" | keyctl padd user "$SERVICE" @u >/dev/null \
+        || { echo "mail-pass: keyctl write failed" >&2; exit 1; }
+    echo "Stored in the kernel keyring (service $SERVICE)."
+    echo "NOTE: the kernel keyring does not survive a reboot -- rerun"
+    echo "      'mail-pass --store' after restarting this host."
 }
 
 store() {
@@ -84,8 +123,6 @@ store() {
     echo ""
     [ -n "$pw" ] || { echo "mail-pass: nothing entered, aborting" >&2; exit 1; }
 
-    # Fastmail app passwords are 16 characters. Anything else is almost always
-    # the account login password, which IMAP and SMTP both reject outright.
     if [ "${#pw}" -ne 16 ]; then
         echo "mail-pass: warning: expected a 16-character app password, got ${#pw}." >&2
         echo "           Account login passwords are rejected by IMAP and SMTP." >&2
@@ -98,16 +135,18 @@ store() {
             echo "Stored in the macOS Keychain (service $SERVICE)."
             ;;
         secret-tool)
-            printf '%s' "$pw" | secret-tool store --label="$SERVICE" service "$SERVICE" \
-                || { echo "mail-pass: secret-tool write failed" >&2; exit 1; }
-            echo "Stored via secret-tool (service $SERVICE)."
+            if printf '%s' "$pw" | secret-tool store --label="$SERVICE" service "$SERVICE" 2>/dev/null; then
+                echo "Stored via secret-tool (service $SERVICE)."
+            else
+                echo "mail-pass: secret-tool write failed; falling back." >&2
+                store_systemd_creds "$pw" || store_keyctl "$pw"
+            fi
+            ;;
+        systemd-creds)
+            store_systemd_creds "$pw" || store_keyctl "$pw"
             ;;
         keyctl)
-            keyctl add user "$SERVICE" "$pw" @u >/dev/null \
-                || { echo "mail-pass: keyctl write failed" >&2; exit 1; }
-            echo "Stored in the kernel keyring (service $SERVICE)."
-            echo "NOTE: the kernel keyring does not survive a reboot -- rerun"
-            echo "      'mail-pass --store' after restarting this host."
+            store_keyctl "$pw"
             ;;
         none)
             echo "mail-pass: no secret store available on this host." >&2
