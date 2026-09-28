@@ -1,134 +1,125 @@
 # dotfiles
 
-Personal configuration files, managed with symlinks.
+[![CI](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml)
 
-| Job | Status |
-|-----|--------|
-| Shellcheck | [![Shellcheck](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=Shellcheck)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
-| Ubuntu | [![Ubuntu](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=Ubuntu)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
-| Fedora | [![Fedora](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=Fedora)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
-| macOS | [![macOS](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=macOS)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
-| E2E Ubuntu | [![E2E Ubuntu](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=E2E+Ubuntu)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
-| E2E Fedora | [![E2E Fedora](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=E2E+Fedora)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
-| E2E Arch | [![E2E Arch](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=E2E+Arch)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
-| E2E Ubuntu bridge | [![E2E Ubuntu bridge](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=E2E+Ubuntu+bridge)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
-| E2E macOS | [![E2E macOS](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=E2E+macOS)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
+Kernel-development setup for macOS, Ubuntu, Fedora and Arch: zsh, tmux, neovim +
+clangd, and a local mail stack (mbsync + notmuch + neomutt) wired for
+`git send-email` / `b4`.
 
-## Contents
+Committed files are symlinked into `$HOME`. Machine-specific files are generated
+there as **real files**, never symlinked, so a `$HOME` backup actually carries them.
 
-- `.zshrc` — zsh configuration
-- `.neomuttrc` — neomutt config (local notmuch mail via mbsync) with patch syntax highlighting, sidebar, and vim keybindings
-- `.config/nvim/init.lua` — neovim config with LSP (clangd, rust-analyzer), nvim-cmp + vsnip snippets, NERDTree, and fzf
-- `.config/clangd/config.yaml` — global clangd config: kernel GCC-flag handling, clang-tidy checks, inlay hints (used by any LSP editor, not just nvim)
-- `.tmux.conf` — tmux configuration with cross-platform clipboard (pbcopy / wl-copy / xclip)
-- `.vimrc` / `.vimrc.plug` — vim configuration
-- `bin/` — helper scripts: `mail-sync` (mbsync + notmuch), `mail-pass` (per-OS password lookup), `mail-provider` (the one place the provider is named; everything else derives from it), `mail-timer` (install a periodic-sync launchd/systemd timer), `mutt` (sync-then-neomutt wrapper), `gpg-setup` (patch-signing key management), `kernel-ccdb` (regenerate a kernel tree's `compile_commands.json`)
-
-Machine-local settings that must not be published live outside this repo and
-have to be recreated per machine (or synced by whatever mechanism you use for
-private config): `~/.config/nvim-local/init.lua` for nvim project detectors,
-`~/.config/dotfiles/mail.conf` for mail-provider overrides, and
-`install.local` for site-specific installer settings such as a proxy.
-
-## Setup
+## New machine
 
 ```sh
 git clone https://github.com/jlhe97/dotfiles.git ~/dotfiles
 cd ~/dotfiles
-./install.sh --name "Your Name" --email "you@example.com"
+./install.sh --name "Your Name" --email "you@example.com"   # --name/--email required together
+
+mail-pass --store          # app password -> OS secret store
+mail-pass --check
+mail-sync                  # first pull, slow
+mail-timer                 # optional: sync every 5 min
+gpg-setup --check          # signing is on only if this host holds the key
 ```
 
-Re-running `install.sh` is safe — it skips packages already installed, leaves
-correct symlinks alone, and only rewrites `~/.neomutt/local.rc` when the
-identity actually changes.
+`install.sh` is idempotent: it skips installed packages, leaves correct symlinks
+alone, and rewrites `~/.neomutt/local.rc` only when the identity changes. The
+clone path is recorded in the symlinks — if you move the repo, re-run it.
 
 ```sh
-./uninstall.sh                  # remove symlinks (prompts about packages)
-./uninstall.sh --skip-packages  # remove symlinks only, no prompt
+./uninstall.sh --skip-packages   # remove symlinks, no package prompt
 ```
 
-## C/C++ & kernel development
+Uninstall never deletes the generated files in `$HOME`; it lists them instead.
 
-Cargo hands rust-analyzer everything it needs, so Rust is only interesting when
-a project *isn't* built by Cargo (see "Non-Cargo and non-CMake projects"). C/C++
-has no manifest at all, so clangd needs a `compile_commands.json` per project.
-Generate it once and clangd (in nvim or any editor) gets accurate includes,
-flags, and cross-file navigation:
+## Mail
 
-| Project type | How to generate `compile_commands.json` |
-|--------------|------------------------------------------|
-| CMake        | Automatic — `.zshrc` exports `CMAKE_EXPORT_COMPILE_COMMANDS=ON`, so it lands in your build dir. Symlink it to the project root once: `ln -s build/compile_commands.json .` |
-| Make         | `bear -- make` (bear intercepts the compiler invocations) |
-| Linux kernel | `make compile_commands.json` after building (wraps `scripts/clang-tools/gen_compile_commands.py`) |
+Mail is local: `mbsync` pulls into `~/Mail/<provider>`, `notmuch` indexes it,
+neomutt reads the notmuch database. No live IMAP.
 
-The kernel's compile DB carries GCC-only flags clang rejects;
-`.config/clangd/config.yaml` strips them globally, so kernel trees index
-cleanly with no per-tree `.clangd` needed. That file also adds `-Wno-error`:
-kernel builds pass `-Werror`, and under clang the GCC-oriented flags produce
-warnings the real build never sees — enough of them to blow clangd's 19-error
-limit, after which it reports "too many errors emitted" and silently truncates
-diagnostics for the whole file. clang-tidy (bugprone/performance/portability
-checks) runs as the C/C++ analog to clippy.
+| Command | |
+|---|---|
+| `mutt` | sync, open neomutt, sync again on exit |
+| `mail-sync` | `mbsync -a && notmuch new` |
+| `mail-pass --store` | store or rotate the app password |
+| `mail-pass --check` | is a secret present, and in which backend |
+| `mail-timer` | install the periodic-sync timer (launchd / systemd `--user`) |
 
-The nvim config tailors itself when it detects a kernel tree (`Kbuild` +
-`Kconfig` + `MAINTAINERS` at the root):
+The provider lives in `bin/mail-provider` (Fastmail by default); override any
+value in `~/.config/dotfiles/mail.conf`. If the provider is unreachable directly,
+`install.sh` detects it and puts an stunnel bridge on loopback.
 
-- clangd starts with `--header-insertion=never` (kernel include rules aren't
-  IWYU, so auto-include suggestions are usually wrong there); personal projects
-  keep IWYU. clangd is also rooted at the tree so it finds `compile_commands.json`.
-- `<leader>f` formats via the LSP — in a kernel file that means the in-tree
-  `.clang-format` (kernel style); visual-mode `<leader>f` formats only the
-  selection, so you don't reformat code you didn't touch.
-- `:KernelCCDB [objdir]` (or `bin/kernel-ccdb [path] [objdir]` from the shell)
-  runs `make compile_commands.json` for the current tree; `:LspRestart` to pick
-  it up. For an `O=` build pass the objdir — that's where the `.cmd` files are,
-  so the database is generated there and linked back into the source root. The
-  nvim command also reads `vim.g.kernel_objdir`, the script `$KERNEL_OBJDIR`.
-- `.cache/` is added to the tree's `.git/info/exclude` on first attach, since
-  clangd's background index lands there and the kernel's tracked `.gitignore`
-  doesn't cover it.
+## Patches
 
-Tooling is installed per platform via the package lists / Brewfile: `clangd`
-(`clang-tools-extra` on Fedora), `clang-tidy`, `clang-format`, and `bear`.
-`init.lua`'s `clangd_bin()` resolver prefers whatever is on `PATH` and falls
-back to known Homebrew and vendored-toolchain locations.
+`install.sh` configures `sendemail.*` and a URL-scoped credential helper that
+reads the same secret as mbsync. Signing turns itself on only when the host
+holds the OpenPGP secret key for the identity.
 
-### Non-Cargo and non-CMake projects
+```sh
+gpg-setup --check                 # key, agent, pinentry, publication status
+gpg-setup --export /tmp/key.gpg   # encrypted transfer file
+gpg-setup --import /tmp/key.gpg   # on the new host, then:
+gpg-setup --enable-signing
+gpg-setup --test
+gpg-setup --publish               # keys.openpgp.org over HTTPS
+```
 
-Work machines often build C/C++ and Rust with something else entirely — a
-monorepo build system with its own toolchain, its own database generator and no
-`Cargo.toml` anywhere. Rather than bake any of that in here, `init.lua` exposes
-two registries that a machine-local config can extend:
+## Kernel & C/C++
+
+clangd needs a `compile_commands.json` per project:
+
+| Project | |
+|---|---|
+| Linux kernel | `make compile_commands.json` after a build, or `kernel-ccdb [path] [objdir]` / `:KernelCCDB [objdir]` in nvim, then `:LspRestart` |
+| CMake | automatic (`CMAKE_EXPORT_COMPILE_COMMANDS=ON`); `ln -s build/compile_commands.json .` once |
+| Make | `bear -- make` |
+
+For an `O=` build pass the objdir — that's where the `.cmd` files are. Also read
+from `$KERNEL_OBJDIR` / `vim.g.kernel_objdir`.
+
+`.config/clangd/config.yaml` strips the kernel's GCC-only flags and adds
+`-Wno-error`; without it clang hits its 19-error limit on those flags and
+silently truncates diagnostics for the whole file.
+
+nvim detects a kernel tree (`Kbuild` + `Kconfig` + `MAINTAINERS`) and switches
+clangd to `--header-insertion=never`, roots it at the tree, formats with the
+in-tree `.clang-format` on `<leader>f` (visual mode formats the selection only),
+and adds `.cache/` to `.git/info/exclude`.
+
+### Non-Cargo, non-CMake projects
+
+`init.lua` loads `~/.config/nvim-local/init.lua` last, which can extend:
 
 ```lua
 _G.cpp_project_detectors   -- dir -> nil | { root, bin, header_insertion }
 _G.rust_project_detectors  -- dir -> nil | { root, cmd, cmd_cwd, settings }
 ```
 
-Each detector is called with the current file's directory; the first to return
-a table wins, and built-in detection (kernel tree, then nearest
-`compile_commands.json`/`.clangd`/`.git`, or nearest `Cargo.toml`) is the
-fallback. Rust detectors get to replace `cmd` and `settings` as well as the
-root, because a non-Cargo project needs a different server invocation, not just
-a different directory.
+First detector to return a table wins; built-in detection is the fallback.
 
-Registrations go in `~/.config/nvim-local/init.lua`, which `init.lua` loads last
-via `dofile` if it exists. That path is deliberately outside `~/.config/nvim`
-(a symlink into this repo), so machine-specific settings never end up here.
+## Machine-local, not in this repo
+
+- `~/.config/nvim-local/init.lua` — nvim project detectors
+- `~/.config/dotfiles/mail.conf` — mail-provider overrides
+- `install.local` — site-specific installer settings (e.g. a proxy)
+- generated by `install.sh` into `$HOME`: `.zshrc.local`, `.neomutt/local.rc`,
+  `.mbsyncrc`, `.notmuch-config`, `.signature`, `.gnupg/gpg-agent.conf`
+
+## Layout
+
+`.zshrc` · `.tmux.conf` (cross-platform clipboard) · `.vimrc` / `.vimrc.plug` ·
+`.neomuttrc` (notmuch vfolders, patch highlighting, vim keys) ·
+`.config/nvim/init.lua` (LSP, nvim-cmp, NERDTree, fzf) ·
+`.config/clangd/config.yaml` · `bin/` (see above, plus `kernel-ccdb`)
 
 ## Testing
 
-Run the full test suite locally (requires [bats-core](https://github.com/bats-core/bats-core)):
-
 ```sh
 bats tests/
+shellcheck install.sh uninstall.sh bin/mail-pass bin/gpg-setup
+docker compose run --rm ubuntu   # or: fedora
 ```
 
-Or against an isolated Ubuntu / Fedora environment via Docker:
-
-```sh
-docker compose run --rm ubuntu
-docker compose run --rm fedora
-```
-
-CI runs automatically on every push and pull request across Ubuntu, Fedora, Arch, and macOS via GitHub Actions (`.github/workflows/test.yml`).
+CI runs shellcheck, unit tests on Ubuntu/Fedora/macOS, and full-install e2e on
+Ubuntu, Fedora, Arch and macOS, plus a bridge-mode run.
