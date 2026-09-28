@@ -80,7 +80,6 @@ FILES=(
 DIRS=(
     ".config/nvim"
     ".config/clangd"
-    ".claude/skills"
     "bin"
 )
 
@@ -1099,8 +1098,7 @@ main() {
     echo "  - gnupg    (~/.gnupg/gpg.conf, ~/.gnupg/gpg-agent.conf)"
     echo "  - sapling  (vcs — sl)"
     echo "  - ghostty  (terminal emulator)"
-    echo "  - claude   (~/.claude/skills/)"
-  echo "  - scripts  (~/bin/)"
+    echo "  - scripts  (~/bin/)"
     echo ""
     echo "Note: You may need to:"
     echo "  - Restart your terminal for zsh to take effect"

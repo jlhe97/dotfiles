@@ -4,12 +4,14 @@ Personal configuration files, managed with symlinks.
 
 | Job | Status |
 |-----|--------|
+| Shellcheck | [![Shellcheck](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=Shellcheck)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
 | Ubuntu | [![Ubuntu](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=Ubuntu)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
 | Fedora | [![Fedora](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=Fedora)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
 | macOS | [![macOS](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=macOS)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
 | E2E Ubuntu | [![E2E Ubuntu](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=E2E+Ubuntu)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
 | E2E Fedora | [![E2E Fedora](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=E2E+Fedora)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
 | E2E Arch | [![E2E Arch](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=E2E+Arch)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
+| E2E Ubuntu bridge | [![E2E Ubuntu bridge](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=E2E+Ubuntu+bridge)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
 | E2E macOS | [![E2E macOS](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml/badge.svg?event=push&job=E2E+macOS)](https://github.com/jlhe97/dotfiles/actions/workflows/test.yml) |
 
 ## Contents
@@ -20,15 +22,13 @@ Personal configuration files, managed with symlinks.
 - `.config/clangd/config.yaml` — global clangd config: kernel GCC-flag handling, clang-tidy checks, inlay hints (used by any LSP editor, not just nvim)
 - `.tmux.conf` — tmux configuration with cross-platform clipboard (pbcopy / wl-copy / xclip)
 - `.vimrc` / `.vimrc.plug` — vim configuration
-- `bin/` — helper scripts: `mail-sync` (mbsync + notmuch), `mail-pass` (per-OS password lookup), `mail-timer` (install a periodic-sync launchd/systemd timer), `mutt` (sync-then-neomutt wrapper), `lei-sync` (kernel mailing-list sync), `kernel-ccdb` (regenerate a kernel tree's `compile_commands.json`)
+- `bin/` — helper scripts: `mail-sync` (mbsync + notmuch), `mail-pass` (per-OS password lookup), `mail-provider` (the one place the provider is named; everything else derives from it), `mail-timer` (install a periodic-sync launchd/systemd timer), `mutt` (sync-then-neomutt wrapper), `gpg-setup` (patch-signing key management), `kernel-ccdb` (regenerate a kernel tree's `compile_commands.json`)
 
-Two of these read machine-local settings that are deliberately not in this
-repo, so nothing work-specific is published: `lei-sync` sources
-`~/.lei-sync.local` (`LEI_PROXY`, `LEI_MAIL_DIR`, `LEI_MY_ADDRESS`,
-`LEI_NETDEV_FILTERS`) and skips a folder with a hint if the relevant variable
-is unset; the nvim config loads `~/.config/nvim-local/init.lua`. Both files
-have to be recreated per machine, or synced by whatever mechanism you use for
-private config.
+Machine-local settings that must not be published live outside this repo and
+have to be recreated per machine (or synced by whatever mechanism you use for
+private config): `~/.config/nvim-local/init.lua` for nvim project detectors,
+`~/.config/dotfiles/mail.conf` for mail-provider overrides, and
+`install.local` for site-specific installer settings such as a proxy.
 
 ## Setup
 

@@ -18,7 +18,6 @@ setup() {
     "$FAKE_DOTFILES/.gnupg" \
     "$FAKE_DOTFILES/.config/nvim" \
     "$FAKE_DOTFILES/.config/clangd" \
-    "$FAKE_DOTFILES/.claude/skills" \
     "$FAKE_DOTFILES/bin"
   for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .zshrc.local .slconfig .ripgreprc; do
     touch "$FAKE_DOTFILES/$f"
@@ -26,8 +25,7 @@ setup() {
   touch \
     "$FAKE_DOTFILES/.neomutt/macos.rc" \
     "$FAKE_DOTFILES/.neomutt/linux.rc" \
-    "$FAKE_DOTFILES/.gnupg/gpg.conf" \
-    "$FAKE_DOTFILES/.claude/settings.local.json"
+    "$FAKE_DOTFILES/.gnupg/gpg.conf"
 
   # --- Source install.sh and run it to lay down symlinks ---
   local tmpfile
@@ -96,10 +94,21 @@ _uninstall() {
   [ ! -e "$TEST_HOME/bin" ]
 }
 
-@test "uninstall removes the .config/nvim and .claude/skills symlinks" {
+@test "uninstall removes the .config directory symlinks" {
   _uninstall
   [ ! -e "$TEST_HOME/.config/nvim" ]
-  [ ! -e "$TEST_HOME/.claude/skills" ]
+  [ ! -e "$TEST_HOME/.config/clangd" ]
+}
+
+# The generated, gitignored files are symlinked like any other dotfile, so
+# uninstall has to take them down too or it leaves links into the repo behind.
+@test "uninstall removes the generated local-config symlinks" {
+  _uninstall
+  [ ! -e "$TEST_HOME/.neomutt/local.rc" ]
+  [ ! -e "$TEST_HOME/.zshrc.local" ]
+  [ ! -e "$TEST_HOME/.mbsyncrc" ]
+  [ ! -e "$TEST_HOME/.notmuch-config" ]
+  [ ! -e "$TEST_HOME/.signature" ]
 }
 
 @test "uninstall removes the gnupg config symlinks" {

@@ -1,8 +1,7 @@
-# Claude sensitive files
-.claude/.credentials.json
-.claude/settings.local.json
-.claude/stats-cache.json
-.claude/history.jsonl
+# Claude Code writes credentials, history and caches here. Nothing under
+# .claude is tracked, so ignore the whole directory rather than chasing each
+# new file it invents.
+.claude/
 
 # Local overrides (machine-specific, not public)
 .zshrc.local
@@ -18,22 +17,6 @@
 # a stray `gpg --homedir` or a copied keyring cannot be committed by accident.
 .gnupg/*
 !.gnupg/gpg.conf
-
-# Claude ephemeral/session data
-.claude/cache/
-.claude/debug/
-.claude/downloads/
-.claude/file-history/
-.claude/ide/
-.claude/paste-cache/
-.claude/plans/
-.claude/plugins/
-.claude/projects/
-.claude/session-env/
-.claude/shell-snapshots/
-.claude/statsig/
-.claude/telemetry/
-.claude/todos/
 
 # Site-specific installer settings
 install.local
