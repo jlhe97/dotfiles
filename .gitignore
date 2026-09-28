@@ -34,3 +34,6 @@
 .claude/statsig/
 .claude/telemetry/
 .claude/todos/
+
+# Site-specific installer settings
+install.local

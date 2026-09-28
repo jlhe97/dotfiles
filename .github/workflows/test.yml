@@ -44,6 +44,8 @@ jobs:
             dockerfile: docker/fedora-e2e.Dockerfile
           - name: Arch
             dockerfile: docker/arch-e2e.Dockerfile
+          - name: Ubuntu bridge
+            dockerfile: docker/ubuntu-bridge-e2e.Dockerfile
     steps:
       - uses: actions/checkout@v4
       - name: Build and run install.sh
@@ -66,6 +68,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run install.sh
         run: ./install.sh --name "Test User" --email "test@example.com"
+        env:
+          MAIL_MODE: direct
       - name: Verify packages on PATH
         run: command -v tmux && command -v nvim && command -v neomutt && command -v zsh && command -v mbsync && command -v notmuch && command -v gpg && command -v pinentry-mac && command -v fzf && command -v rg
       - name: Verify dotfile symlinks
@@ -95,3 +99,20 @@ jobs:
           test -z "$(git config --global --get patatt.signingkey || true)"
       - name: Verify nvim plugins installed
         run: test -d "$HOME/.local/share/nvim/plugged"
+      - name: Verify the launchd bridge branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install stunnel
+          grep -v '^set -e' install.sh | grep -v '^main ' > /tmp/install-fns.sh
+          # shellcheck disable=SC1091
+          source /tmp/install-fns.sh
+          PROXY_HOST_PORT=proxy.invalid:8080 configure_mail_bridge "test@example.com"
+          plist="$HOME/Library/LaunchAgents/com.jlhe.stunnel-fastmail.plist"
+          test -f "$plist"
+          plutil -lint "$plist"
+          grep -q 'com.jlhe.stunnel-fastmail' "$plist"
+          test ! -f "$HOME/.config/systemd/user/stunnel-fastmail.service"
+          grep -q '^connect = proxy.invalid:8080' "$HOME/.config/stunnel/fastmail.conf"
+          grep -q '^accept = localhost:1993' "$HOME/.config/stunnel/fastmail.conf"
+          test "$(stat -f %A "$HOME/.msmtprc")" = "600"

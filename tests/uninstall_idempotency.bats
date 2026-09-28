@@ -10,6 +10,7 @@ REAL_DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 setup() {
   TEST_HOME="$(mktemp -d)"
   export HOME="$TEST_HOME"
+  export MAIL_MODE=direct
 
   FAKE_DOTFILES="$TEST_HOME/fake_dotfiles"
   mkdir -p \
@@ -47,6 +48,8 @@ setup() {
   configure_patch_workflow()  { :; }
   install_ohmyzsh()           { :; }
   set_default_shell()         { :; }
+  configure_mail_bridge()     { :; }
+  build_mail_tools_from_source() { :; }
   install_vim_plugins()       { :; }
   install_nvim_plugins()      { :; }
 
@@ -61,6 +64,7 @@ setup() {
 
   DOTFILES_DIR="$FAKE_DOTFILES"
 
+  remove_mail_services()      { :; }
   uninstall_via_packagefile() { :; }
   uninstall_ghostty()         { :; }
   uninstall_ohmyzsh()         { :; }
@@ -173,6 +177,8 @@ _uninstall() {
   configure_patch_workflow()  { :; }
   install_ohmyzsh()           { :; }
   set_default_shell()         { :; }
+  configure_mail_bridge()     { :; }
+  build_mail_tools_from_source() { :; }
   install_vim_plugins()       { :; }
   install_nvim_plugins()      { :; }
 

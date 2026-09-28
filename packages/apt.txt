@@ -36,3 +36,6 @@ cargo
 rust-src
 bats
 shellcheck
+# TLS bridge used only when this host cannot reach the mail server directly.
+stunnel4
+msmtp

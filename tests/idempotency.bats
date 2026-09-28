@@ -11,6 +11,7 @@ DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 setup() {
   TEST_HOME="$(mktemp -d)"
   export HOME="$TEST_HOME"
+  export MAIL_MODE=direct
 
   # Isolated fake dotfiles dir inside TEST_HOME so main() never touches
   # the real repository files.
