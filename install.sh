@@ -56,7 +56,7 @@ proxy_curl() {
     curl "$@"
 }
 
-# Files to install (relative to dotfiles directory)
+# Files to install (relative to dotfiles directory). Committed files only.
 FILES=(
     ".tmux.conf"
     ".vimrc"
@@ -65,15 +65,19 @@ FILES=(
     ".neomuttrc"
     ".neomutt/macos.rc"
     ".neomutt/linux.rc"
-    ".neomutt/local.rc"
-    ".mbsyncrc"
-    ".notmuch-config"
     ".gnupg/gpg.conf"
-    ".gnupg/gpg-agent.conf"
-    ".zshrc.local"
     ".slconfig"
-    ".signature"
     ".ripgreprc"
+)
+
+# Machine-specific files generated into $HOME as real files, never symlinked.
+GENERATED=(
+    "$HOME/.zshrc.local"
+    "$HOME/.neomutt/local.rc"
+    "$HOME/.mbsyncrc"
+    "$HOME/.notmuch-config"
+    "$HOME/.signature"
+    "$HOME/.gnupg/gpg-agent.conf"
 )
 
 # Directories to install (relative to dotfiles directory)
@@ -283,8 +287,8 @@ configure_gnupg() {
     mkdir -p "$gnupg_home"
     chmod 700 "$gnupg_home"
 
-    mkdir -p "$DOTFILES_DIR/.gnupg"
-    local agent_conf="$DOTFILES_DIR/.gnupg/gpg-agent.conf"
+    local agent_conf="$gnupg_home/gpg-agent.conf"
+    materialize_local_file "$agent_conf"
 
     local pinentry
     pinentry="$(pinentry_program || true)"
@@ -312,7 +316,7 @@ configure_gnupg() {
     fi
 
     printf '%s\n' "$desired" > "$agent_conf"
-    info "Written .gnupg/gpg-agent.conf (pinentry: ${pinentry:-none})"
+    info "Written ~/.gnupg/gpg-agent.conf (pinentry: ${pinentry:-none})"
 
     # Pick up the new pinentry without killing an agent out from under whatever
     # is using it -- and only when one is actually running, since asking
@@ -590,8 +594,30 @@ backup_and_link() {
     info "Linked $dest -> $src"
 }
 
+# Replace a leftover symlink into the repo with a real file holding the same
+# content. Without this, the generation code below writes through the link and
+# silently edits $DOTFILES_DIR instead of $HOME.
+materialize_local_file() {
+    local dest="$1" link_target
+
+    [ -L "$dest" ] || return 0
+    link_target="$(readlink "$dest")"
+    [[ "$link_target" == "$DOTFILES_DIR"* ]] || return 0
+
+    if [ -f "$link_target" ]; then
+        local tmp
+        tmp="$(mktemp "${dest}.XXXXXX")"
+        cat "$link_target" > "$tmp"
+        mv -f "$tmp" "$dest"
+        info "Migrated $dest from a repo symlink to a real file"
+    else
+        rm -f "$dest"
+        info "Removed dangling repo symlink: $dest"
+    fi
+}
+
 resolve_identity() {
-    local local_rc="$DOTFILES_DIR/.neomutt/local.rc"
+    local local_rc="$HOME/.neomutt/local.rc"
     local existing_name="" existing_email=""
 
     if [ -f "$local_rc" ]; then
@@ -929,12 +955,17 @@ main() {
     set_default_shell || warn "could not set default shell — run: chsh -s \$(which zsh)"
     echo ""
 
-    # Create local override files if they don't exist (gitignored, machine-specific)
-    if [ ! -f "$DOTFILES_DIR/.zshrc.local" ]; then
-        touch "$DOTFILES_DIR/.zshrc.local"
-        info "Created .zshrc.local (add machine-specific shell config here)"
+    for generated in "${GENERATED[@]}"; do
+        mkdir -p "$(dirname "$generated")"
+        materialize_local_file "$generated"
+    done
+
+    # Create local override files if they don't exist (machine-specific)
+    if [ ! -f "$HOME/.zshrc.local" ]; then
+        touch "$HOME/.zshrc.local"
+        info "Created ~/.zshrc.local (add machine-specific shell config here)"
     fi
-    local local_rc="$DOTFILES_DIR/.neomutt/local.rc"
+    local local_rc="$HOME/.neomutt/local.rc"
     if [ -f "$local_rc" ] && \
        grep -qF "set real_name = \"${USER_NAME}\"" "$local_rc" && \
        grep -qF "set imap_user = \"${USER_EMAIL}\"" "$local_rc" && \
@@ -968,21 +999,21 @@ main() {
                 esac
             fi
         } > "$local_rc"
-        info "Written .neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
+        info "Written ~/.neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
     fi
 
     # Signature appended to outgoing mail.
-    local signature="$DOTFILES_DIR/.signature"
+    local signature="$HOME/.signature"
     if [ -s "$signature" ]; then
-        info "Using existing .signature"
+        info "Using existing ~/.signature"
     else
         printf '%s\n' "$USER_NAME" > "$signature"
-        info "Written .signature for $USER_NAME"
+        info "Written ~/.signature for $USER_NAME"
     fi
 
-    # Generate ~/.mbsyncrc (gitignored; contains email). Password comes from
-    # bin/mail-pass at sync time, so nothing secret is written here.
-    local mbsyncrc="$DOTFILES_DIR/.mbsyncrc"
+    # Generate ~/.mbsyncrc (machine-specific; contains email). Password comes
+    # from bin/mail-pass at sync time, so nothing secret is written here.
+    local mbsyncrc="$HOME/.mbsyncrc"
     {
         echo "IMAPAccount $MAIL_PROVIDER"
         if [ "${MAIL_MODE:-direct}" = bridge ]; then
@@ -1020,10 +1051,10 @@ main() {
         echo "Expunge Both"
         echo "SyncState *"
     } > "$mbsyncrc"
-    info "Written .mbsyncrc for $USER_EMAIL"
+    info "Written ~/.mbsyncrc for $USER_EMAIL"
 
-    # Generate ~/.notmuch-config (gitignored; contains identity).
-    local notmuch_config="$DOTFILES_DIR/.notmuch-config"
+    # Generate ~/.notmuch-config (machine-specific; contains identity).
+    local notmuch_config="$HOME/.notmuch-config"
     {
         echo "[database]"
         echo "path=$MAIL_DIR"
@@ -1042,7 +1073,7 @@ main() {
         echo "[maildir]"
         echo "synchronize_flags=true"
     } > "$notmuch_config"
-    info "Written .notmuch-config for $USER_NAME <$USER_EMAIL>"
+    info "Written ~/.notmuch-config for $USER_NAME <$USER_EMAIL>"
 
     # Install regular files
     for file in "${FILES[@]}"; do

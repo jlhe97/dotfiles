@@ -38,8 +38,17 @@ RUN test -L "$HOME/.tmux.conf" \
     && test -L "$HOME/.ripgreprc" \
     && test -L "$HOME/.neomutt/linux.rc" \
     && test -L "$HOME/.gnupg/gpg.conf" \
-    && test -L "$HOME/.gnupg/gpg-agent.conf" \
+    && test -f "$HOME/.gnupg/gpg-agent.conf" \
     && test -L "$HOME/bin"
+
+# The generated machine-specific files must be real files in $HOME, never
+# symlinks into the repo: a symlink is all a $HOME backup can capture.
+RUN for f in .zshrc.local .neomutt/local.rc .mbsyncrc .notmuch-config .signature \
+             .gnupg/gpg-agent.conf; do \
+        test -f "$HOME/$f" || { echo "missing: $f"; exit 1; }; \
+        test ! -L "$HOME/$f" || { echo "still a symlink: $f"; exit 1; }; \
+    done \
+    && test ! -e "$HOME/dotfiles/.mbsyncrc"
 
 # gpg refuses to use a homedir other users can read.
 RUN test "$(stat -c %a "$HOME/.gnupg")" = "700"

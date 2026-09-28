@@ -30,14 +30,19 @@ shellcheck install.sh uninstall.sh bin/mail-pass bin/gpg-setup
 
 `install.sh` maintains two arrays near the top:
 
-- **`FILES`** — individual files to symlink (`.tmux.conf`, `.vimrc`, `.zshrc`, `.slconfig`, `.ripgreprc`, neomutt configs, gnupg configs, and the generated `.mbsyncrc` / `.notmuch-config` / `.signature` / `.zshrc.local`)
+- **`FILES`** — committed files to symlink (`.tmux.conf`, `.vimrc`, `.zshrc`, `.slconfig`, `.ripgreprc`, neomutt platform rcs, `.gnupg/gpg.conf`)
 - **`DIRS`** — directories to symlink as a whole (`.config/nvim`, `.config/clangd`, `bin`)
+- **`GENERATED`** — absolute `$HOME` paths of the machine-specific files `main()` writes as **real files, never symlinks**: `.zshrc.local`, `.neomutt/local.rc`, `.mbsyncrc`, `.notmuch-config`, `.signature`, `.gnupg/gpg-agent.conf`
+
+The `GENERATED` split exists because these files are gitignored: keeping them in the repo and symlinking meant the repo never actually carried them, while hiding them from anything that backs up `$HOME` (dotsync2 on a devserver stores the symlink, not its target, so a rebuilt host got dangling links). `materialize_local_file()` converts a leftover symlink into a real file on upgrade — without it every `>` redirect in the generation block would write through the link into `$DOTFILES_DIR`.
 
 `main()` resolves identity (`--name`/`--email` flags → existing `.neomutt/local.rc` → interactive prompt), installs packages for the detected platform (Homebrew on macOS, apt/dnf/pacman on Linux), configures git and sapling identity, sets up oh-my-zsh, loops through `FILES`/`DIRS` calling `backup_and_link()`, then installs vim/nvim plugins.
 
-`uninstall.sh` has a flat `TARGETS` array of absolute `$HOME/...` paths. Its loop only removes symlinks that point into `$DOTFILES_DIR` — regular files and foreign symlinks are left untouched with a warning.
+`uninstall.sh` has a flat `TARGETS` array of absolute `$HOME/...` paths. Its loop only removes symlinks that point into `$DOTFILES_DIR` — regular files and foreign symlinks are left untouched with a warning. Its own `GENERATED` array mirrors install's: those paths are reported and never deleted when they are real files, since `.zshrc.local` and `.signature` are meant to be hand-edited. A `GENERATED` path that is still a repo symlink (pre-migration install) does get removed.
 
-**When adding a new dotfile**: add it to `FILES` in `install.sh`, add the corresponding `$HOME/...` path to `TARGETS` in `uninstall.sh`, add `touch "$FAKE_DOTFILES/<file>"` to the setup blocks in `tests/idempotency.bats` and `tests/uninstall_idempotency.bats`, and add `test -L "$HOME/<file>"` to the three full-install e2e Dockerfiles (`ubuntu`, `fedora`, `arch`) and the macOS e2e step in `.github/workflows/test.yml`. `ubuntu-bridge-e2e` asserts only the bridge-specific output, so it needs nothing.
+**When adding a new committed dotfile**: add it to `FILES` in `install.sh`, add the corresponding `$HOME/...` path to `TARGETS` in `uninstall.sh`, add `touch "$FAKE_DOTFILES/<file>"` to the setup blocks in `tests/idempotency.bats` and `tests/uninstall_idempotency.bats`, and add `test -L "$HOME/<file>"` to the three full-install e2e Dockerfiles (`ubuntu`, `fedora`, `arch`) and the macOS e2e step in `.github/workflows/test.yml`. `ubuntu-bridge-e2e` asserts only the bridge-specific output, so it needs nothing.
+
+**When adding a new generated file**: add the `$HOME/...` path to `GENERATED` in both `install.sh` and `uninstall.sh`, write it in `main()` with a plain `>` redirect, add it to the `.gitignore` list, and add it to the loop in the "generated files are real files" e2e assertion. Do **not** add it to `FILES` — the loop would warn `Source file not found`.
 
 ### `backup_and_link(src, dest)`
 
@@ -84,7 +89,7 @@ System operations that touch the real host (package managers, chsh, oh-my-zsh do
 
 ### Identity & machine-specific config
 
-`resolve_identity()` collects name/email; `main()` then generates three gitignored, machine-specific files from that identity and symlinks them via `FILES`:
+`resolve_identity()` collects name/email (reading `$HOME/.neomutt/local.rc`, which works whether it is already a real file or still a repo symlink); `main()` then generates three machine-specific files from that identity directly in `$HOME`:
 
 - `.neomutt/local.rc` — `imap_user`/`from`/`real_name`/`smtp_url`/`nm_default_url` (sourced by the platform rc; its write-guard requires all three of `real_name`, `imap_user`, `nm_default_url` to be present before skipping the rewrite).
 - `.mbsyncrc` — mbsync IMAP→maildir config; password via `PassCmd "$HOME/bin/mail-pass"`.
@@ -93,7 +98,7 @@ System operations that touch the real host (package managers, chsh, oh-my-zsh do
 
 `configure_git()` and `configure_sapling()` set `user.name`/`user.email` globally; both are idempotent (skip if already matching).
 
-`.zshrc.local` is also gitignored and sourced by `.zshrc` for machine-specific shell config.
+`~/.zshrc.local` is created empty if missing and sourced by `.zshrc` for machine-specific shell config.
 
 ### Mail architecture
 
@@ -125,8 +130,8 @@ different decision from signing every commit on the machine.
 
 Two config files land in `~/.gnupg`, and the directory is forced to mode 700:
 
-- `.gnupg/gpg.conf` — committed, identical everywhere.
-- `.gnupg/gpg-agent.conf` — generated per machine and gitignored, because the
+- `.gnupg/gpg.conf` — committed, symlinked from the repo, identical everywhere.
+- `.gnupg/gpg-agent.conf` — generated per machine as a real file, because the
   pinentry path is the one genuinely OS-specific piece: `pinentry-mac` on macOS, a
   graphical pinentry on a Linux desktop, `pinentry-curses` headless. `.zshrc` exports
   `GPG_TTY`, without which the curses prompt fails instead of prompting.

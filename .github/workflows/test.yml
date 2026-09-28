@@ -85,8 +85,15 @@ jobs:
           test -L "$HOME/.ripgreprc"
           test -L "$HOME/.neomutt/macos.rc"
           test -L "$HOME/.gnupg/gpg.conf"
-          test -L "$HOME/.gnupg/gpg-agent.conf"
+          test -f "$HOME/.gnupg/gpg-agent.conf"
           test -L "$HOME/bin"
+      - name: Verify generated files are real files, not repo symlinks
+        run: |
+          for f in .zshrc.local .neomutt/local.rc .mbsyncrc .notmuch-config .signature .gnupg/gpg-agent.conf; do
+            test -f "$HOME/$f"
+            test ! -L "$HOME/$f"
+          done
+          test ! -e "$GITHUB_WORKSPACE/.mbsyncrc"
       - name: Verify gnupg homedir permissions and pinentry choice
         run: |
           test "$(stat -f %A "$HOME/.gnupg")" = "700"

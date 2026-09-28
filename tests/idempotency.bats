@@ -22,7 +22,7 @@ setup() {
     "$FAKE_DOTFILES/.config/nvim" \
     "$FAKE_DOTFILES/.config/clangd" \
     "$FAKE_DOTFILES/bin"
-  for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .zshrc.local .slconfig .ripgreprc; do
+  for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .slconfig .ripgreprc; do
     touch "$FAKE_DOTFILES/$f"
   done
   touch \
@@ -136,35 +136,71 @@ _install() {
   main --name "New User" --email "new@example.com"
 
   local content
-  content="$(cat "$FAKE_DOTFILES/.neomutt/local.rc")"
+  content="$(cat "$TEST_HOME/.neomutt/local.rc")"
   [[ "$content" == *"New User"* ]]
   [[ "$content" == *"new@example.com"* ]]
 }
 
-@test "signature is created from the installed name and symlinked" {
+@test "signature is created from the installed name as a real file" {
   _install
 
-  [ "$(cat "$FAKE_DOTFILES/.signature")" = "Test User" ]
-  [ -L "$TEST_HOME/.signature" ]
-  [ "$(readlink "$TEST_HOME/.signature")" = "$FAKE_DOTFILES/.signature" ]
+  [ "$(cat "$TEST_HOME/.signature")" = "Test User" ]
+  [ -f "$TEST_HOME/.signature" ]
+  [ ! -L "$TEST_HOME/.signature" ]
 }
 
 @test "an edited signature survives a reinstall" {
   _install
-  printf 'Test User\nhttps://example.com\n' > "$FAKE_DOTFILES/.signature"
+  printf 'Test User\nhttps://example.com\n' > "$TEST_HOME/.signature"
 
   main --name "New User" --email "new@example.com"
 
   # Prose, not generated config: the new identity must not clobber the edits.
-  [ "$(cat "$FAKE_DOTFILES/.signature")" = "$(printf 'Test User\nhttps://example.com')" ]
+  [ "$(cat "$TEST_HOME/.signature")" = "$(printf 'Test User\nhttps://example.com')" ]
 }
 
 @test "an empty signature file is filled in rather than left blank" {
-  : > "$FAKE_DOTFILES/.signature"
+  : > "$TEST_HOME/.signature"
 
   _install
 
-  [ "$(cat "$FAKE_DOTFILES/.signature")" = "Test User" ]
+  [ "$(cat "$TEST_HOME/.signature")" = "Test User" ]
+}
+
+@test "generated files are real files, not symlinks into the repo" {
+  _install
+
+  for f in .zshrc.local .neomutt/local.rc .mbsyncrc .notmuch-config .signature \
+           .gnupg/gpg-agent.conf; do
+    [ -f "$TEST_HOME/$f" ]
+    [ ! -L "$TEST_HOME/$f" ]
+    [ ! -e "$FAKE_DOTFILES/$f" ]
+  done
+}
+
+@test "a leftover repo symlink is migrated to a real file keeping its content" {
+  mkdir -p "$FAKE_DOTFILES/.neomutt"
+  printf 'hand written\n' > "$FAKE_DOTFILES/.signature"
+  ln -s "$FAKE_DOTFILES/.signature" "$TEST_HOME/.signature"
+  printf 'export FOO=1\n' > "$FAKE_DOTFILES/.zshrc.local"
+  ln -s "$FAKE_DOTFILES/.zshrc.local" "$TEST_HOME/.zshrc.local"
+
+  _install
+
+  [ ! -L "$TEST_HOME/.signature" ]
+  [ "$(cat "$TEST_HOME/.signature")" = "hand written" ]
+  [ ! -L "$TEST_HOME/.zshrc.local" ]
+  [ "$(cat "$TEST_HOME/.zshrc.local")" = "export FOO=1" ]
+}
+
+@test "a dangling repo symlink is replaced rather than written through" {
+  ln -s "$FAKE_DOTFILES/.mbsyncrc" "$TEST_HOME/.mbsyncrc"
+
+  _install
+
+  [ ! -L "$TEST_HOME/.mbsyncrc" ]
+  [ ! -e "$FAKE_DOTFILES/.mbsyncrc" ]
+  grep -q '^IMAPAccount' "$TEST_HOME/.mbsyncrc"
 }
 
 @test "install continues and creates symlinks even when a tool install fails" {
@@ -199,12 +235,13 @@ _install() {
 # GnuPG config
 # ---------------------------------------------------------------------------
 
-@test "install links both gnupg config files" {
+@test "install links gpg.conf and writes gpg-agent.conf" {
   _install
 
   [ -L "$TEST_HOME/.gnupg/gpg.conf" ]
-  [ -L "$TEST_HOME/.gnupg/gpg-agent.conf" ]
   [ "$(readlink "$TEST_HOME/.gnupg/gpg.conf")" = "$FAKE_DOTFILES/.gnupg/gpg.conf" ]
+  [ -f "$TEST_HOME/.gnupg/gpg-agent.conf" ]
+  [ ! -L "$TEST_HOME/.gnupg/gpg-agent.conf" ]
 }
 
 # gpg refuses to use a homedir other users can read, and the FILES loop's
