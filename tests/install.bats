@@ -930,8 +930,9 @@ _setup_gnupg_fixture() {
   configure_gnupg
 
   export PATH="$orig_path"
-  local conf="$DOTFILES_DIR/.gnupg/gpg-agent.conf"
+  local conf="$HOME/.gnupg/gpg-agent.conf"
   [ -f "$conf" ]
+  [ ! -L "$conf" ]
   [[ "$(cat "$conf")" == *"pinentry-program"*"pinentry-curses"* ]]
   [[ "$(cat "$conf")" == *"default-cache-ttl 3600"* ]]
 }
@@ -960,7 +961,7 @@ _setup_gnupg_fixture() {
   export PATH="$orig_path"
   [ "$status" -eq 0 ]
   [[ "$output" == *"no pinentry binary found"* ]]
-  [ -f "$DOTFILES_DIR/.gnupg/gpg-agent.conf" ]
+  [ -f "$HOME/.gnupg/gpg-agent.conf" ]
 }
 
 # ---------------------------------------------------------------------------

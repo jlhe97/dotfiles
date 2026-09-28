@@ -31,7 +31,7 @@ error() {
 
 # Files and directories to uninstall
 #
-# Note the two ~/.gnupg entries are individual files. The directory itself is
+# Note the ~/.gnupg entry is an individual file. The directory itself is
 # deliberately NOT a target: it holds the OpenPGP keyring, which this repo did
 # not create and must never delete.
 TARGETS=(
@@ -44,16 +44,21 @@ TARGETS=(
     "$HOME/.neomuttrc"
     "$HOME/.slconfig"
     "$HOME/.ripgreprc"
+    "$HOME/.neomutt/macos.rc"
+    "$HOME/.neomutt/linux.rc"
+    "$HOME/.gnupg/gpg.conf"
+    "$HOME/bin"
+)
+
+# Machine-specific files install.sh generates in $HOME. Reported, never
+# removed: .zshrc.local and .signature are meant to be hand-edited.
+GENERATED=(
+    "$HOME/.zshrc.local"
+    "$HOME/.neomutt/local.rc"
     "$HOME/.mbsyncrc"
     "$HOME/.notmuch-config"
     "$HOME/.signature"
-    "$HOME/.neomutt/macos.rc"
-    "$HOME/.neomutt/linux.rc"
-    "$HOME/.neomutt/local.rc"
-    "$HOME/.zshrc.local"
-    "$HOME/.gnupg/gpg.conf"
     "$HOME/.gnupg/gpg-agent.conf"
-    "$HOME/bin"
 )
 
 uninstall_via_packagefile() {
@@ -213,6 +218,30 @@ main() {
             warn "Skipping $target - does not exist"
         fi
     done
+
+    echo ""
+
+    info "Checking machine-specific files..."
+    local kept=()
+    for generated in "${GENERATED[@]}"; do
+        if [ -L "$generated" ]; then
+            link_target="$(readlink "$generated")"
+            if [[ "$link_target" == "$DOTFILES_DIR"* ]]; then
+                rm "$generated"
+                info "Removed symlink: $generated"
+            else
+                warn "Skipping $generated - symlink points elsewhere: $link_target"
+            fi
+        elif [ -e "$generated" ]; then
+            kept+=("$generated")
+        fi
+    done
+
+    if [ ${#kept[@]} -gt 0 ]; then
+        warn "Left ${#kept[@]} machine-specific file(s) in place:"
+        printf '         %s\n' "${kept[@]}"
+        warn "These hold this machine's identity and mail config — delete them yourself if you want them gone."
+    fi
 
     echo ""
 
