@@ -14,8 +14,8 @@ bats tests/install.bats
 # Run a single test by name
 bats tests/install.bats --filter "backup_and_link creates symlink"
 
-# Lint shell scripts
-shellcheck install.sh uninstall.sh
+# Lint shell scripts (same set CI lints)
+shellcheck install.sh uninstall.sh bin/mail-pass bin/gpg-setup
 
 # Install dotfiles (requires --name and --email)
 ./install.sh --name "Your Name" --email "you@example.com"
@@ -30,14 +30,14 @@ shellcheck install.sh uninstall.sh
 
 `install.sh` maintains two arrays near the top:
 
-- **`FILES`** — individual files to symlink (`.tmux.conf`, `.vimrc`, `.zshrc`, `.slconfig`, neomutt configs, gnupg configs, claude settings, etc.)
-- **`DIRS`** — directories to symlink as a whole (`.config/nvim`, `.claude/skills`)
+- **`FILES`** — individual files to symlink (`.tmux.conf`, `.vimrc`, `.zshrc`, `.slconfig`, `.ripgreprc`, neomutt configs, gnupg configs, and the generated `.mbsyncrc` / `.notmuch-config` / `.signature` / `.zshrc.local`)
+- **`DIRS`** — directories to symlink as a whole (`.config/nvim`, `.config/clangd`, `bin`)
 
 `main()` resolves identity (`--name`/`--email` flags → existing `.neomutt/local.rc` → interactive prompt), installs packages for the detected platform (Homebrew on macOS, apt/dnf/pacman on Linux), configures git and sapling identity, sets up oh-my-zsh, loops through `FILES`/`DIRS` calling `backup_and_link()`, then installs vim/nvim plugins.
 
 `uninstall.sh` has a flat `TARGETS` array of absolute `$HOME/...` paths. Its loop only removes symlinks that point into `$DOTFILES_DIR` — regular files and foreign symlinks are left untouched with a warning.
 
-**When adding a new dotfile**: add it to `FILES` in `install.sh`, add the corresponding `$HOME/...` path to `TARGETS` in `uninstall.sh`, add `touch "$FAKE_DOTFILES/<file>"` to the setup blocks in `tests/idempotency.bats` and `tests/uninstall_idempotency.bats`, and add `test -L "$HOME/<file>"` to all four e2e Dockerfiles and the macOS e2e step in `.github/workflows/test.yml`.
+**When adding a new dotfile**: add it to `FILES` in `install.sh`, add the corresponding `$HOME/...` path to `TARGETS` in `uninstall.sh`, add `touch "$FAKE_DOTFILES/<file>"` to the setup blocks in `tests/idempotency.bats` and `tests/uninstall_idempotency.bats`, and add `test -L "$HOME/<file>"` to the three full-install e2e Dockerfiles (`ubuntu`, `fedora`, `arch`) and the macOS e2e step in `.github/workflows/test.yml`. `ubuntu-bridge-e2e` asserts only the bridge-specific output, so it needs nothing.
 
 ### `backup_and_link(src, dest)`
 
@@ -69,13 +69,14 @@ System operations that touch the real host (package managers, chsh, oh-my-zsh do
 
 ### CI
 
-`.github/workflows/test.yml` runs 8 jobs on every push:
+`.github/workflows/test.yml` runs 9 jobs on every push:
 
-- **Shellcheck** — lints `install.sh` and `uninstall.sh`
+- **Shellcheck** — lints `install.sh`, `uninstall.sh`, `bin/mail-pass`, `bin/gpg-setup`
 - **Ubuntu / Fedora** — BATS unit tests inside Docker
 - **macOS** — BATS unit tests on `macos-latest`
 - **E2E Ubuntu / Fedora / Arch** — full `install.sh` run inside Docker, then verifies packages and symlinks
-- **E2E macOS** — full `install.sh` run on `macos-latest`, verifies packages, symlinks, and nvim plugin directory
+- **E2E Ubuntu bridge** — `install.sh` with `MAIL_MODE=bridge` against an unreachable proxy, asserting the generated stunnel conf, systemd unit, `.mbsyncrc` and `.msmtprc`
+- **E2E macOS** — full `install.sh` run on `macos-latest`, verifies packages, symlinks, and nvim plugin directory, then exercises the launchd branch of `configure_mail_bridge`
 
 ### Package lists
 
@@ -96,7 +97,7 @@ System operations that touch the real host (package managers, chsh, oh-my-zsh do
 
 ### Mail architecture
 
-Mail is **local**: `mbsync` (isync) pulls the configured provider into `$MAIL_DIR` (`~/Mail/<provider>`), `notmuch` indexes it for cross-folder threading, and neomutt reads the notmuch database (`virtual-mailboxes`). No live IMAP, no GPG in the mail path. The provider is defined in `bin/mail-provider` (defaults to Fastmail; override any value in `~/.config/dotfiles/mail.conf`, gitignored), and every other name — maildir, secret-store key, bridge unit — derives from it. The app password lives in the OS secret store and is read by `bin/mail-pass`, used by both mbsync and neomutt SMTP: macOS Keychain (`security`), or on Linux the first of `secret-tool` (libsecret), `systemd-creds` (host-key encrypted, the only option that survives a reboot) or `keyctl` (kernel keyring, lost on reboot) that returns a non-empty secret. (`pass` was dropped: it drags gpg-agent and a passphrase prompt into the mail path.) Store or rotate the secret with `mail-pass --store`, check it with `mail-pass --check`. `bin/mail-sync` runs `mbsync -a && notmuch new`; `bin/mutt` runs it before launching neomutt. `bin/mail-timer` installs a periodic-sync timer for the current OS (launchd LaunchAgent on macOS, systemd `--user` timer on Linux); run it once per machine. (`bin/lei-sync` for kernel mailing lists is retained but no longer wired into the launch path.)
+Mail is **local**: `mbsync` (isync) pulls the configured provider into `$MAIL_DIR` (`~/Mail/<provider>`), `notmuch` indexes it for cross-folder threading, and neomutt reads the notmuch database (`virtual-mailboxes`). No live IMAP, no GPG in the mail path. The provider is defined in `bin/mail-provider` (defaults to Fastmail; override any value in `~/.config/dotfiles/mail.conf`, gitignored), and every other name — maildir, secret-store key, bridge unit — derives from it. The app password lives in the OS secret store and is read by `bin/mail-pass`, used by both mbsync and neomutt SMTP: macOS Keychain (`security`), or on Linux the first of `secret-tool` (libsecret), `systemd-creds` (host-key encrypted, the only option that survives a reboot) or `keyctl` (kernel keyring, lost on reboot) that returns a non-empty secret. (`pass` was dropped: it drags gpg-agent and a passphrase prompt into the mail path.) Store or rotate the secret with `mail-pass --store`, check it with `mail-pass --check`. `bin/mail-sync` runs `mbsync -a && notmuch new`; `bin/mutt` runs it before launching neomutt. `bin/mail-timer` installs a periodic-sync timer for the current OS (launchd LaunchAgent on macOS, systemd `--user` timer on Linux); run it once per machine.
 
 ### Patch signing & GnuPG
 

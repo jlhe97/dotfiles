@@ -86,7 +86,6 @@ jobs:
           test -L "$HOME/.neomutt/macos.rc"
           test -L "$HOME/.gnupg/gpg.conf"
           test -L "$HOME/.gnupg/gpg-agent.conf"
-          test -L "$HOME/.claude/skills"
           test -L "$HOME/bin"
       - name: Verify gnupg homedir permissions and pinentry choice
         run: |

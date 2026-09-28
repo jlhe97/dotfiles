@@ -27,3 +27,8 @@ services:
     build:
       context: .
       dockerfile: docker/arch-e2e.Dockerfile
+
+  ubuntu-bridge-e2e:
+    build:
+      context: .
+      dockerfile: docker/ubuntu-bridge-e2e.Dockerfile
