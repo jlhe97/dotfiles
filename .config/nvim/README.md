@@ -1,87 +1,61 @@
-# Neovim Configuration
+# Neovim config
 
-Minimal Neovim configuration for C/C++ and Rust development with LSP support,
-with extra handling for Linux kernel trees.
+C/C++ and Rust with the built-in LSP client (no lspconfig), tuned for Linux
+kernel trees. Requires Neovim 0.8+.
 
-## Features
+Symlinked to `~/.config/nvim` by `install.sh` — don't copy the files. Plugins
+bootstrap on first launch, or `nvim +PlugInstall +qall`.
 
-- **Built-in LSP support** using `vim.lsp` (no lspconfig dependency)
-- **clangd** for C/C++, **rust-analyzer** for Rust, both auto-started per filetype
-- **Autocompletion** with nvim-cmp
-- **Linux kernel coding style** (8-space tabs) and kernel-aware clangd settings
-- **Machine-local extension point** for build systems that aren't Cargo/CMake
+## Keys
 
-## Requirements
+Leader is `\`.
 
-- Neovim 0.8 or later (uses `vim.fs`, `vim.lsp.start`)
-- clangd for C/C++, rust-analyzer for Rust
+| | |
+|---|---|
+| `gd` `gr` `gi` | definition, references, implementation |
+| `K` | hover docs |
+| `<leader>rn` `<leader>ca` | rename, code actions |
+| `<leader>f` | format — visual mode formats the selection only |
+| `Tab` / `S-Tab` / `CR` | completion: next, previous, accept |
+| `C-Space` | trigger completion |
+| `C-n` / `<leader>n` | NERDTree toggle / reveal current file |
+| `C-p` / `<leader>fg` / `<leader>fb` | fzf: files, grep, buffers |
+| `]q` `[q` `<leader>qf` | quickfix next, previous, open |
 
-Both are installed by the repo's package lists (`packages/apt.txt`,
-`packages/dnf.txt`, `Brewfile`); the resolvers in `init.lua` also fall back to
-`~/.cargo/bin` and the usual Homebrew prefixes.
+## How the server finds your project
 
-## Installation
+| Language | Project | Root |
+|---|---|---|
+| C/C++ | kernel tree | `Kbuild` + `Kconfig` + `MAINTAINERS` at the root |
+| C/C++ | anything else | nearest `compile_commands.json`, `.clangd`, or `.git` |
+| Rust | Cargo | nearest `Cargo.toml`, searched upward **from the file**, not the cwd |
+| either | no match | a detector from the machine-local config (takes precedence) |
 
-`install.sh` at the repo root symlinks this whole directory to
-`~/.config/nvim` — don't copy the files. Plugins bootstrap on first launch, or
-manually:
+clangd needs a `compile_commands.json` — see the repo README for how to
+generate one per build system.
 
-```bash
-nvim +PlugInstall +qall
-```
+In a kernel tree clangd starts with `--header-insertion=never` and is rooted at
+the tree. Build the tree, then `:KernelCCDB [objdir]` (or `bin/kernel-ccdb`)
+and `:LspRestart`. Pass the objdir for `O=` builds.
 
-## Usage
+## Machine-local config
 
-### Key Bindings
-
-- **Tab/Shift-Tab**: Navigate completions
-- **Ctrl-Space**: Trigger completion manually
-- **Enter**: Accept selected completion
-- **gd**: Go to definition
-- **gr**: Find references
-- **gi**: Go to implementation
-- **K**: Show hover documentation
-- **\<leader\>rn**: Rename symbol (leader is `\`)
-- **\<leader\>ca**: Show code actions
-- **\<leader\>f**: Format buffer (visual mode: format the selection only)
-
-### Language servers
-
-Both servers need to know how the project is built:
-
-| Language | Project | Root comes from |
-|----------|---------|-----------------|
-| C/C++ | anything with a compile DB | nearest `compile_commands.json`, `.clangd`, or `.git` |
-| C/C++ | Linux kernel | `Kbuild` + `Kconfig` + `MAINTAINERS` at the tree root |
-| Rust | Cargo | nearest `Cargo.toml`, searched upward **from the file** (not the cwd) |
-| either | anything else | a detector registered by the machine-local config |
-
-For C/C++ that means generating a `compile_commands.json` — see the repo README
-for the per-build-system recipes.
-
-### Linux kernel trees
-
-Detected automatically; clangd then starts with `--header-insertion=never` and
-is rooted at the tree. Generate the compile database from inside nvim with
-`:KernelCCDB [objdir]` (or `bin/kernel-ccdb` from a shell), then `:LspRestart`.
-The tree must already be built — the kernel's `compile_commands.json` target
-scans the `.cmd` files the build leaves behind. Pass the objdir for `O=` builds.
-
-## Machine-local configuration
-
-`init.lua` loads `~/.config/nvim-local/init.lua` last, if it exists. That file
-is outside this repo on purpose: work machines can register their own project
-detectors there without any of it being published here.
+`init.lua` loads `~/.config/nvim-local/init.lua` last, if present. It lives
+outside this repo so work machines can register private detectors:
 
 ```lua
 _G.cpp_project_detectors   -- dir -> nil | { root, bin, header_insertion }
 _G.rust_project_detectors  -- dir -> nil | { root, cmd, cmd_cwd, settings }
+_G.clangd_extra_candidates -- absolute clangd paths when none is on PATH
 ```
 
 First detector to return a table wins; built-in detection is the fallback.
+Rust detectors can replace `cmd` and `settings` too, since a non-Cargo build
+needs a different server invocation.
 
-## Customization
+## File map
 
-Everything lives in `init.lua`, in this order: plugins, editor options,
-colorscheme, LSP keymaps/`on_attach`, server resolvers and autocmds, nvim-cmp,
-then the user commands and the machine-local loader.
+`init.lua`, top to bottom: version guard, plugins, editor options, colorscheme
+and UI plugins, NERDTree/fzf/quickfix keys, `on_attach` and LSP keys,
+rust-analyzer resolver + detectors + autocmd, nvim-cmp, clangd resolver +
+kernel detection + autocmd, `:KernelCCDB`, machine-local loader.

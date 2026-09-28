@@ -1,23 +1,12 @@
 #!/bin/bash
-# Resolve the mail app password from the OS secret store. This is the ONLY
-# accessor for that secret: mbsync (PassCmd in ~/.mbsyncrc), neomutt (smtp_pass
-# in ~/.neomuttrc), and b4/git-send-email (via the credential.helper that
-# install.sh wires up) all shell out to this script.
+# The ONLY accessor for the mail app password: mbsync, neomutt and
+# b4/git-send-email all shell out to this. Don't add a second copy elsewhere —
+# rotating then updates one and silently breaks the other.
 #
-# One secret, one store, one accessor. An earlier setup kept the same password
-# in two places -- this store plus git's own osxkeychain credential -- so
-# rotating the app password updated one and silently broke the other.
-# Don't reintroduce a second copy.
-#
-# Deliberately NOT a plaintext file: a secret sitting in a dotfile gets picked
-# up by any recursive grep, backup, or coding agent crawling $HOME. Every store
-# below requires an explicit API call to read.
-#
-# GPG is deliberately absent. `pass` would drag gpg-agent, pinentry and a
-# passphrase prompt back into the mail path, which is the failure mode this
-# script exists to avoid.
-#
-# Store or rotate the secret with:  mail-pass --store
+# Never a plaintext file: every store below needs an explicit API call to read,
+# so a recursive grep or backup of $HOME cannot pick the secret up. `pass` is
+# excluded on purpose; it drags gpg-agent and a passphrase prompt into the
+# mail path.
 set -uo pipefail
 
 # shellcheck source=/dev/null
@@ -37,9 +26,8 @@ access -- one credential covers IMAP for mbsync and SMTP for neomutt and b4.
 EOF
 }
 
-# Print the first non-empty secret found, else return 1. On Linux the desktop
-# keyring is tried first, then the kernel keyring as the headless fallback:
-# devservers and containers have no D-Bus session for libsecret to talk to.
+# Desktop keyring first, kernel keyring as the headless fallback: devservers
+# and containers have no D-Bus session for libsecret to talk to.
 lookup() {
     local secret="" id
 

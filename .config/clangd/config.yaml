@@ -7,14 +7,10 @@ CompileFlags:
   Add:
     - -Wno-unknown-warning-option
     - -Wno-unknown-attributes
-    # Kernel builds pass -Werror. Under clang the GCC-oriented flags produce
-    # warnings the real (GCC) build never sees, and -Werror turns them into
-    # errors -- enough of them to blow clangd's 19-error limit, after which it
-    # emits "too many errors emitted, stopping now" and truncates diagnostics
-    # for the whole file. Editor diagnostics should never be fatal anyway.
+    # Kernel -Werror plus clang's take on GCC flags blows clangd's 19-error
+    # limit, after which it truncates diagnostics for the whole file.
     - -Wno-error
-  # Strip GCC/kernel-only flags clang rejects. These never appear in normal
-  # user projects, so removing them globally is safe and only helps kernel trees.
+  # GCC/kernel-only; they never appear in user projects, so stripping is global.
   Remove:
     - -mpreferred-stack-boundary=*
     - -mno-fp-ret-in-387
@@ -36,8 +32,7 @@ CompileFlags:
     - --param=*
 
 Diagnostics:
-  # High-signal clang-tidy checks (clang-analyzer-* is on by default). Kept
-  # conservative so it's useful for both kernel C and personal C/C++.
+  # clang-analyzer-* is already on by default.
   ClangTidy:
     Add:
       - bugprone-*

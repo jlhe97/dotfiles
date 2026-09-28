@@ -1,14 +1,13 @@
 #!/bin/bash
 
 # Dotfiles Installation Script
-# This script creates symlinks from $HOME to the dotfiles in this repository
+# Symlinks committed files into $HOME; generates machine-specific ones there.
 
 set -e
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -33,7 +32,6 @@ MAIL_PROVIDER_FILE="${MAIL_PROVIDER_FILE:-$DOTFILES_DIR/bin/mail-provider}"
 # shellcheck source=/dev/null
 . "$MAIL_PROVIDER_FILE"
 
-# checking if env requires a proxy to spoke to the interwebz.
 http_connect_proxy() {
     local p="${PROXY_HOST_PORT:-}"
     [ -z "$p" ] && p="$(git config --global --get http.proxy 2>/dev/null || true)"
@@ -56,7 +54,7 @@ proxy_curl() {
     curl "$@"
 }
 
-# Files to install (relative to dotfiles directory). Committed files only.
+# Files to install (relative to dotfiles directory)
 FILES=(
     ".tmux.conf"
     ".vimrc"
@@ -70,7 +68,7 @@ FILES=(
     ".ripgreprc"
 )
 
-# Machine-specific files generated into $HOME as real files, never symlinked.
+# Never symlinked: a $HOME backup captures a symlink, not what it points at.
 GENERATED=(
     "$HOME/.zshrc.local"
     "$HOME/.neomutt/local.rc"
@@ -94,7 +92,6 @@ install_ghostty() {
     else
         info "Installing ghostty..."
         if command -v apt &> /dev/null; then
-            # Add Ghostty apt repository for Debian/Ubuntu
             sudo apt update && sudo apt install -y curl gpg
             curl -fsSL https://pkg.ghostty.org/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/ghostty-keyring.gpg
             echo "deb [signed-by=/usr/share/keyrings/ghostty-keyring.gpg] https://pkg.ghostty.org/apt stable main" | sudo tee /etc/apt/sources.list.d/ghostty.list
@@ -153,16 +150,10 @@ install_sapling() {
     fi
 }
 
-# The nvim config requires 0.8+ (see the guard at the top of .config/nvim/init.lua).
-# Distro packages lag badly -- Ubuntu 22.04 still ships 0.6 -- so a plain
-# `apt install neovim` leaves a broken editor behind: the symlinks all land, then
-# init.lua aborts on the first 0.8-only call. Check what the package manager
-# actually gave us and top it up from the upstream release when it falls short.
+# init.lua requires nvim 0.8+; Ubuntu 22.04 still ships 0.6.
 nvim_meets_minimum() {
     command -v nvim &>/dev/null || return 1
-    # -u NONE matters: init.lua deliberately errors out on old nvim, so loading
-    # it here would make the check fail for the wrong reason (or hang on a
-    # prompt). has() is the same test the config itself uses.
+    # -u NONE: init.lua errors out on old nvim, failing this for the wrong reason.
     local answer
     answer="$(nvim -u NONE --headless -c 'lua io.write(vim.fn.has("nvim-0.8"))' -c 'qa' 2>/dev/null)"
     [[ "$answer" == "1" ]]
@@ -189,8 +180,7 @@ install_neovim() {
     info "neovim is missing or older than 0.8 — installing the upstream release..."
     local tmp_tar tarball_url
     tmp_tar="$(mktemp /tmp/neovim_XXXXXX.tar.gz)"
-    # Asset names have changed across releases (nvim-linux64 -> nvim-linux-x86_64),
-    # so resolve the current one from the release metadata rather than hardcoding.
+    # Asset names churn across releases (nvim-linux64 -> nvim-linux-x86_64).
     tarball_url="$(proxy_curl -fsSL https://api.github.com/repos/neovim/neovim/releases/latest \
         | grep -oE "https://[^\"]*${asset}" | head -1)"
     if [[ -z "$tarball_url" ]]; then
@@ -199,13 +189,10 @@ install_neovim() {
         return 0
     fi
     proxy_curl -fsSL "$tarball_url" -o "$tmp_tar"
-    # Replace any previous upstream install rather than layering a new release
-    # over it; stale files in share/nvim/runtime confuse the new binary.
+    # Stale files in share/nvim/runtime confuse a newer binary.
     sudo rm -rf /usr/local/lib/nvim
     sudo mkdir -p /usr/local/lib/nvim
-    # --strip-components=1 flattens the versioned top-level dir, so the symlink
-    # target below stays stable. nvim resolves its runtime relative to the real
-    # binary, so linking bin/nvim into PATH is enough to find share/nvim/runtime.
+    # --strip-components=1 flattens the versioned dir so the link target is stable.
     sudo tar -xzf "$tmp_tar" -C /usr/local/lib/nvim --strip-components=1
     sudo ln -sf /usr/local/lib/nvim/bin/nvim /usr/local/bin/nvim
 
@@ -250,15 +237,9 @@ configure_sapling() {
     fi
 }
 
-# Which pinentry can actually draw a passphrase prompt on this host? This is
-# the only genuinely OS-specific piece of the GnuPG setup, which is why
-# gpg-agent.conf is generated per machine while gpg.conf is a plain symlink.
-#
-# macOS: pinentry-mac gives a native dialog and can stash the passphrase in the
-# Keychain, matching where bin/mail-pass already keeps the mail secret.
-# Linux: a graphical prompt when there is a display to draw on, otherwise the
-# curses prompt -- the only one that works over ssh and on headless devservers.
-# The curses prompt needs GPG_TTY, which .zshrc exports.
+# The only OS-specific piece of the GnuPG setup, hence gpg-agent.conf being
+# per-machine. Curses is the only prompt that works over ssh and headless, and
+# it needs GPG_TTY, which .zshrc exports.
 pinentry_program() {
     local candidates c
     if [[ "$(uname)" == "Darwin" ]]; then
@@ -278,12 +259,9 @@ pinentry_program() {
     return 1
 }
 
-# Generate .gnupg/gpg-agent.conf for this machine and make sure the directory
-# GnuPG keeps its keyring in has the permissions it insists on.
 configure_gnupg() {
     local gnupg_home="$HOME/.gnupg"
-    # 700 is not cosmetic: gpg refuses to use a homedir others can read, and
-    # the FILES loop below would otherwise create it with the umask default.
+    # gpg refuses a homedir others can read; the FILES loop would create it 0755.
     mkdir -p "$gnupg_home"
     chmod 700 "$gnupg_home"
 
@@ -304,8 +282,7 @@ configure_gnupg() {
         if [ -n "$pinentry" ]; then
             echo "pinentry-program $pinentry"
         fi
-        # Cache for a working session so sending a patch series is not eight
-        # separate passphrase prompts, but still expire within the day.
+        # One patch series without re-prompting, still expiring within the day.
         echo "default-cache-ttl 3600"
         echo "max-cache-ttl 28800"
     )"
@@ -318,9 +295,7 @@ configure_gnupg() {
     printf '%s\n' "$desired" > "$agent_conf"
     info "Written ~/.gnupg/gpg-agent.conf (pinentry: ${pinentry:-none})"
 
-    # Pick up the new pinentry without killing an agent out from under whatever
-    # is using it -- and only when one is actually running, since asking
-    # gpgconf to reload would otherwise spawn an agent just to reload it.
+    # Only if an agent is running: gpgconf --reload would otherwise spawn one.
     if command -v gpgconf &>/dev/null; then
         local sock
         sock="$(gpgconf --list-dirs agent-socket 2>/dev/null || true)"
@@ -331,24 +306,17 @@ configure_gnupg() {
     fi
 }
 
-# Fingerprint of the local secret key that can sign as $1, empty if there is
-# none. Everything about signing keys off this: a machine that does not hold
-# the secret key gets no signing config at all, which is what makes the
-# installer safe to run in a container, on a devserver, or on a fresh laptop
-# before the key has been transferred to it.
+# Empty when this machine holds no signing key for $1. All signing config keys
+# off this, which is what makes install.sh safe to run in a container.
 signing_key_fingerprint() {
     command -v gpg &>/dev/null || return 0
-    # --with-colons is the only output format gpg promises to keep stable;
-    # field 10 of an fpr record is the full fingerprint, and the first one
-    # belongs to the primary key.
+    # --with-colons is the only stable output format; fpr field 10 is the print.
     gpg --list-secret-keys --with-colons "$1" 2>/dev/null \
         | awk -F: '/^fpr:/ { print $10; exit }'
 }
 
-# Patch signing, decided per machine. b4 signs through patatt, which reads
-# patatt.signingkey from git config; the "openpgp:" prefix tells it to sign via
-# gpg rather than with its own ed25519 format, so no unencrypted key file ends
-# up in $HOME.
+# b4 signs through patatt. The "openpgp:" prefix makes patatt sign via gpg
+# instead of writing its own unencrypted ed25519 file into $HOME.
 configure_patch_signing() {
     local email="$1" fpr existing
 
@@ -359,8 +327,7 @@ configure_patch_signing() {
         return 0
     fi
 
-    # Never clobber a deliberate choice. Someone who has already pointed these
-    # at a different key -- a work key, a hardware token -- meant to.
+    # Never clobber a deliberate choice: a work key, a hardware token.
     existing="$(git config --global --get user.signingKey 2>/dev/null || true)"
     if [ -n "$existing" ] && [ "$existing" != "$fpr" ]; then
         warn "user.signingKey is already set to $existing — leaving it alone"
@@ -375,26 +342,19 @@ configure_patch_signing() {
         git config --global patatt.signingkey "openpgp:$fpr"
     fi
 
-    # Undo the historical opt-out. It was set while the public key was
-    # unpublished, when a signature nobody could verify was pure cost; the key
-    # is on keys.openpgp.org now, so a signature means something.
+    # Historical opt-out, set while the key was unpublished. It is published now.
     if [ -n "$(git config --global --get b4.send-no-patatt-sign 2>/dev/null || true)" ]; then
         git config --global --unset-all b4.send-no-patatt-sign 2>/dev/null || true
         info "cleared b4.send-no-patatt-sign — b4 will sign again"
     fi
 
-    # commit.gpgsign is deliberately NOT set: that would sign every commit in
-    # every repo on this machine, work ones included, which is a different
-    # decision from signing patches mailed to a list.
+    # commit.gpgsign deliberately NOT set: signing every commit on the machine
+    # is a different decision from signing patches mailed to a list.
     info "patch signing enabled with OpenPGP key $fpr"
 }
 
-# Wire up `git send-email` / b4 for kernel patch submission. Three concerns
-# that only make sense together: where mail goes, how the SMTP password is
-# found, and whether patches get signed.
-#
-# Every step is skip-and-warn. A locked-down devserver where the global git
-# config is managed centrally must not fail the whole install.
+# Every step is skip-and-warn: a devserver with centrally managed git config
+# must not fail the whole install.
 configure_patch_workflow() {
     trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
     command -v git &>/dev/null || return 0
@@ -413,26 +373,20 @@ configure_patch_workflow() {
         git config --global sendemail.smtpuser       "$email"
     fi
 
-    # sendemail.smtppass must stay unset. b4 only falls back to
-    # `git credential fill` -- and so to bin/mail-pass -- when it finds this
-    # key empty, and setting it would pin a second copy of the password in a
-    # second place, which is the exact failure this design removed.
+    # Must stay unset: b4 only falls back to `git credential fill`, and so to
+    # bin/mail-pass, when this is empty.
     if [ -n "$(git config --global --get sendemail.smtppass 2>/dev/null || true)" ]; then
         git config --global --unset-all sendemail.smtppass 2>/dev/null || true
         warn "removed sendemail.smtppass — the password comes from bin/mail-pass"
     fi
 
-    # URL-scoped, not global, so the machine's normal credential helper
-    # (osxkeychain, libsecret) still serves GitHub and everything else. The
-    # empty first value resets any helper inherited from a broader scope;
-    # without it git tries that one first and hands back a stale password.
-    # Single-quoted on purpose: $1 and $HOME belong to the helper and must
-    # reach git's config file unexpanded.
+    # URL-scoped so the machine's normal helper still serves GitHub. The empty
+    # first value resets anything inherited from a broader scope. Single-quoted:
+    # $1 and $HOME must reach git's config file unexpanded.
     local scope="credential.smtp://$MAIL_SMTP_HOST:$MAIL_SMTP_PORT.helper"
     # shellcheck disable=SC2016  # not expanding is the whole point: git stores this verbatim
     local helper='!f() { test "$1" = get && echo "password=$($HOME/bin/mail-pass)"; }; f'
     local current expected
-    # --get-all prints one line per value: the empty reset, then the helper.
     current="$(git config --global --get-all "$scope" 2>/dev/null || true)"
     expected="$(printf '\n%s' "$helper")"
     if [ "$current" = "$expected" ]; then
@@ -475,7 +429,6 @@ install_ohmyzsh() {
         info "oh-my-zsh is already installed"
     else
         info "Installing oh-my-zsh..."
-        # Install oh-my-zsh without running zsh or modifying .zshrc
         RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
         info "oh-my-zsh installed successfully"
     fi
@@ -490,8 +443,7 @@ install_via_brewfile() {
     info "Installing packages via Brewfile..."
     brew bundle install --no-upgrade --file="$DOTFILES_DIR/Brewfile"
     info "Brewfile packages installed"
-    # compiledb is the macOS bear-equivalent (bear itself is broken under SIP);
-    # it has no brew formula, so install it via pipx.
+    # bear is broken under SIP; compiledb replaces it and has no brew formula.
     if command -v pipx &>/dev/null; then
         info "Installing compiledb via pipx..."
         pipx install compiledb || warn "compiledb install failed — run 'pipx install compiledb' manually"
@@ -526,12 +478,8 @@ install_via_packagefile() {
     local pkg
     while IFS= read -r pkg || [[ -n "$pkg" ]]; do
         [[ -z "$pkg" || "$pkg" == \#* ]] && continue
-        # </dev/null is load-bearing. The loop reads the package list on stdin,
-        # and a package manager that reads stdin itself consumes the rest of it
-        # in one go -- the next `read` then sees EOF and the loop ends early,
-        # silently, with no warning, because nothing failed. Every remaining
-        # package is simply never attempted. Detaching the command's stdin
-        # keeps the list intact no matter what the package manager does with it.
+        # </dev/null is load-bearing: a package manager that reads stdin eats
+        # the rest of the list and the loop ends early, silently.
         $install_cmd "$pkg" </dev/null || warn "failed to install $pkg — skipping"
     done < "$pkg_file"
     info "Package installation complete"
@@ -573,16 +521,13 @@ backup_and_link() {
     local src="$1"
     local dest="$2"
 
-    # Already points to the right place — nothing to do
     if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$src" ]; then
         return 0
     fi
 
     if [ -L "$dest" ]; then
-        # Stale symlink pointing somewhere else — just replace it
         rm "$dest"
     elif [ -e "$dest" ]; then
-        # Real file or directory — back it up
         mkdir -p "$BACKUP_DIR"
         local backup_path
         backup_path="$BACKUP_DIR/$(basename "$dest")"
@@ -594,9 +539,8 @@ backup_and_link() {
     info "Linked $dest -> $src"
 }
 
-# Replace a leftover symlink into the repo with a real file holding the same
-# content. Without this, the generation code below writes through the link and
-# silently edits $DOTFILES_DIR instead of $HOME.
+# Must run before the generation code below, which would otherwise write
+# through a leftover symlink and silently edit $DOTFILES_DIR instead of $HOME.
 materialize_local_file() {
     local dest="$1" link_target
 
@@ -625,13 +569,11 @@ resolve_identity() {
         existing_email="$(grep 'imap_user' "$local_rc" 2>/dev/null | sed 's/.*= *"\(.*\)"/\1/')"
     fi
 
-    # --name/--email flags take priority (CI-friendly, allows override)
     if [ -n "$USER_NAME" ] && [ -n "$USER_EMAIL" ]; then
         info "Using provided identity: $USER_NAME <$USER_EMAIL>"
         return 0
     fi
 
-    # Reuse existing identity silently — no prompt needed
     if [ -n "$existing_name" ] && [ -n "$existing_email" ]; then
         info "Using existing identity: $existing_name <$existing_email>"
         USER_NAME="$existing_name"
@@ -639,16 +581,14 @@ resolve_identity() {
         return 0
     fi
 
-    # No identity anywhere — must prompt interactively
     read -r -p "Enter your full name (e.g. Jane Smith): " USER_NAME
     echo ""
     read -r -p "Enter your email address: " USER_EMAIL
     echo ""
 }
 
-# Echo a `set ssl_ca_certificates_file` line for local.rc ONLY when neomutt is a
-# GnuTLS build (Debian/Ubuntu). OpenSSL builds (Fedora/RHEL, macOS) reject the
-# option and use the system trust store automatically. Always returns 0.
+# GnuTLS builds only. OpenSSL builds reject the option and use the system
+# trust store. Always returns 0.
 neomutt_ca_line() {
     command -v neomutt &>/dev/null || return 0
     neomutt -v 2>/dev/null | grep -qi gnutls || return 0
@@ -668,9 +608,7 @@ ca_bundle_file() {
              /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem; do
         [ -f "$f" ] && { echo "$f"; return 0; }
     done
-    # macOS keeps its roots in the Keychain and ships no PEM bundle, so ask
-    # OpenSSL where its own trust store lives. Covers Homebrew and any
-    # non-standard prefix without hard-coding one.
+    # macOS ships no PEM bundle; ask OpenSSL where its own trust store lives.
     if command -v openssl &>/dev/null; then
         d="$(openssl version -d 2>/dev/null | sed -n 's/^OPENSSLDIR: *"\(.*\)"$/\1/p')"
         [ -n "$d" ] && [ -f "$d/cert.pem" ] && { echo "$d/cert.pem"; return 0; }
@@ -681,7 +619,6 @@ ca_bundle_file() {
 MAIL_BRIDGE_IMAP_PORT=1993
 MAIL_BRIDGE_SMTP_PORT=1465
 
-# we probe if we can access directly or we need to go through a proxy bridge
 mail_transport_mode() {
     if command -v openssl &>/dev/null && \
        timeout 10 openssl s_client -connect "$MAIL_IMAP_HOST:$MAIL_IMAP_PORT" \
@@ -914,20 +851,15 @@ main() {
 
     resolve_identity
 
-    # neomutt header cache dir (speeds up opening large notmuch vfolders)
     mkdir -p "$HOME/.cache/neomutt"
 
     if [[ "$(uname)" == "Darwin" ]]; then
-        # macOS: declarative install via Brewfile (tmux, neovim, neomutt, sapling, b4, ghostty, zsh)
         install_via_brewfile || warn "Brewfile install incomplete — some packages may be missing"
         echo ""
     else
-        # Linux: package list file (apt/dnf/pacman) for standard packages,
-        # then individual functions for tools needing custom install steps
         install_via_packagefile || warn "some packages failed — check output above"
         echo ""
-        # After the package file, so it can top up a too-old distro neovim, and
-        # before install_nvim_plugins, which runs the config to install plugins.
+        # After the package file (may top up an old nvim), before plugin install.
         install_neovim || warn "neovim install incomplete — the nvim config needs 0.8+"
         echo ""
         install_sapling || true
@@ -946,9 +878,7 @@ main() {
 
     configure_git "$USER_NAME" "$USER_EMAIL" || true
     configure_sapling "$USER_NAME" "$USER_EMAIL" || true
-    # Before the FILES loop: this generates .gnupg/gpg-agent.conf, which the
-    # loop then symlinks. Also runs after the package step so the pinentry it
-    # picks is one that is actually installed.
+    # After the package step, so the pinentry it picks is actually installed.
     configure_gnupg || warn "GnuPG configuration incomplete — check output above"
     configure_patch_workflow "$USER_EMAIL" || warn "patch workflow config incomplete — check output above"
     install_ohmyzsh || warn "oh-my-zsh installation failed — continuing without it"
@@ -960,7 +890,6 @@ main() {
         materialize_local_file "$generated"
     done
 
-    # Create local override files if they don't exist (machine-specific)
     if [ ! -f "$HOME/.zshrc.local" ]; then
         touch "$HOME/.zshrc.local"
         info "Created ~/.zshrc.local (add machine-specific shell config here)"
@@ -1002,7 +931,6 @@ main() {
         info "Written ~/.neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
     fi
 
-    # Signature appended to outgoing mail.
     local signature="$HOME/.signature"
     if [ -s "$signature" ]; then
         info "Using existing ~/.signature"
@@ -1011,8 +939,7 @@ main() {
         info "Written ~/.signature for $USER_NAME"
     fi
 
-    # Generate ~/.mbsyncrc (machine-specific; contains email). Password comes
-    # from bin/mail-pass at sync time, so nothing secret is written here.
+    # Password comes from bin/mail-pass at sync time; nothing secret is here.
     local mbsyncrc="$HOME/.mbsyncrc"
     {
         echo "IMAPAccount $MAIL_PROVIDER"
@@ -1028,9 +955,7 @@ main() {
         if [ "${MAIL_MODE:-direct}" = bridge ]; then
             echo "SSLType None"
         else
-            # SSLType, not the newer TLSType alias: Ubuntu 24.04's isync (1.4.4)
-            # predates the 1.5.0 rename and doesn't recognize TLSType at all.
-            # SSLType still works on newer isync too (deprecated, but functional).
+            # Not TLSType: Ubuntu 24.04's isync (1.4.4) predates the 1.5.0 rename.
             echo "SSLType IMAPS"
         fi
         echo "AuthMechs LOGIN"
@@ -1053,7 +978,6 @@ main() {
     } > "$mbsyncrc"
     info "Written ~/.mbsyncrc for $USER_EMAIL"
 
-    # Generate ~/.notmuch-config (machine-specific; contains identity).
     local notmuch_config="$HOME/.notmuch-config"
     {
         echo "[database]"
@@ -1075,7 +999,6 @@ main() {
     } > "$notmuch_config"
     info "Written ~/.notmuch-config for $USER_NAME <$USER_EMAIL>"
 
-    # Install regular files
     for file in "${FILES[@]}"; do
         src="$DOTFILES_DIR/$file"
         dest="$HOME/$file"
@@ -1088,13 +1011,11 @@ main() {
         fi
     done
 
-    # Install directories
     for dir in "${DIRS[@]}"; do
         src="$DOTFILES_DIR/$dir"
         dest="$HOME/$dir"
 
         if [ -d "$src" ]; then
-            # Ensure parent directory exists
             mkdir -p "$(dirname "$dest")"
             backup_and_link "$src" "$dest"
         else
@@ -1102,9 +1023,7 @@ main() {
         fi
     done
 
-    # The FILES loop calls `mkdir -p` on each parent, which would have created
-    # ~/.gnupg with the umask default had configure_gnupg not made it first.
-    # Re-assert it here so the invariant holds no matter the order.
+    # The FILES loop's `mkdir -p` would have created it with the umask default.
     [ -d "$HOME/.gnupg" ] && chmod 700 "$HOME/.gnupg"
 
     # Plugin install runs after symlinks so ~/.config/nvim/init.lua exists
@@ -1178,5 +1097,4 @@ main() {
     echo "=========================================="
 }
 
-# Run main function
 main "$@"

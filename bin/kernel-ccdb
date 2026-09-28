@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
-# Regenerate compile_commands.json for the Linux kernel tree containing the
-# given path (or $PWD), so clangd has an accurate compile database.
-#
-# Requires the tree to have been built at least partially: the kernel's
-# `compile_commands.json` target scans the .*.cmd files the build leaves behind.
-#
-# For an O= build pass the objdir (or export KERNEL_OBJDIR): that is where the
-# .cmd files are, so the database is generated there and then linked into the
-# source root, which is where clangd looks for it.
+# Regenerate compile_commands.json for the kernel tree containing a path.
+# Needs a built tree: the target scans the .*.cmd files the build leaves behind.
+# For an O= build pass the objdir (or export KERNEL_OBJDIR).
 #
 # Usage: kernel-ccdb [path-inside-a-kernel-tree] [objdir]
 set -euo pipefail

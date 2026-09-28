@@ -41,8 +41,7 @@ RUN test -L "$HOME/.tmux.conf" \
     && test -f "$HOME/.gnupg/gpg-agent.conf" \
     && test -L "$HOME/bin"
 
-# The generated machine-specific files must be real files in $HOME, never
-# symlinks into the repo: a symlink is all a $HOME backup can capture.
+# A $HOME backup captures a symlink, not what it points at.
 RUN for f in .zshrc.local .neomutt/local.rc .mbsyncrc .notmuch-config .signature \
              .gnupg/gpg-agent.conf; do \
         test -f "$HOME/$f" || { echo "missing: $f"; exit 1; }; \

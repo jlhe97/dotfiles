@@ -1,7 +1,6 @@
 # Lowercase search == case insensitive. Uppercase == case sensitive
 --smart-case
 
-# ignore .git files
 --hidden
 --glob=!.git/
 
