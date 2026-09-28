@@ -11,7 +11,6 @@ MAIL_PROVIDER_FILE="${MAIL_PROVIDER_FILE:-$DOTFILES_DIR/bin/mail-provider}"
 # shellcheck source=/dev/null
 . "$MAIL_PROVIDER_FILE"
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -29,8 +28,6 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Files and directories to uninstall
-#
 # Note the ~/.gnupg entry is an individual file. The directory itself is
 # deliberately NOT a target: it holds the OpenPGP keyring, which this repo did
 # not create and must never delete.
@@ -50,8 +47,7 @@ TARGETS=(
     "$HOME/bin"
 )
 
-# Machine-specific files install.sh generates in $HOME. Reported, never
-# removed: .zshrc.local and .signature are meant to be hand-edited.
+# Never removed, only reported: .zshrc.local and .signature are hand-edited.
 GENERATED=(
     "$HOME/.zshrc.local"
     "$HOME/.neomutt/local.rc"
@@ -101,7 +97,6 @@ uninstall_ghostty() {
             brew uninstall ghostty
         elif command -v apt &> /dev/null; then
             sudo apt remove -y ghostty
-            # Optionally remove the repository
             sudo rm -f /etc/apt/sources.list.d/ghostty.list
             sudo rm -f /usr/share/keyrings/ghostty-keyring.gpg
         elif command -v dnf &> /dev/null; then
@@ -200,11 +195,9 @@ main() {
     echo "=========================================="
     echo ""
 
-    # Remove symlinks
     info "Removing symlinks..."
     for target in "${TARGETS[@]}"; do
         if [ -L "$target" ]; then
-            # Check if symlink points to our dotfiles directory
             link_target="$(readlink "$target")"
             if [[ "$link_target" == "$DOTFILES_DIR"* ]]; then
                 rm "$target"
