@@ -21,7 +21,6 @@ setup() {
     "$FAKE_DOTFILES/.gnupg" \
     "$FAKE_DOTFILES/.config/nvim" \
     "$FAKE_DOTFILES/.config/clangd" \
-    "$FAKE_DOTFILES/.claude/skills" \
     "$FAKE_DOTFILES/bin"
   for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .zshrc.local .slconfig .ripgreprc; do
     touch "$FAKE_DOTFILES/$f"
@@ -29,8 +28,7 @@ setup() {
   touch \
     "$FAKE_DOTFILES/.neomutt/macos.rc" \
     "$FAKE_DOTFILES/.neomutt/linux.rc" \
-    "$FAKE_DOTFILES/.gnupg/gpg.conf" \
-    "$FAKE_DOTFILES/.claude/settings.local.json"
+    "$FAKE_DOTFILES/.gnupg/gpg.conf"
 
   # Source install functions without running main or set -e.
   local tmpfile

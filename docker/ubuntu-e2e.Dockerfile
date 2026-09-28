@@ -39,7 +39,6 @@ RUN test -L "$HOME/.tmux.conf" \
     && test -L "$HOME/.neomutt/linux.rc" \
     && test -L "$HOME/.gnupg/gpg.conf" \
     && test -L "$HOME/.gnupg/gpg-agent.conf" \
-    && test -L "$HOME/.claude/skills" \
     && test -L "$HOME/bin"
 
 # gpg refuses to use a homedir other users can read.

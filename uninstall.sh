@@ -49,9 +49,10 @@ TARGETS=(
     "$HOME/.signature"
     "$HOME/.neomutt/macos.rc"
     "$HOME/.neomutt/linux.rc"
+    "$HOME/.neomutt/local.rc"
+    "$HOME/.zshrc.local"
     "$HOME/.gnupg/gpg.conf"
     "$HOME/.gnupg/gpg-agent.conf"
-    "$HOME/.claude/skills"
     "$HOME/bin"
 )
 
