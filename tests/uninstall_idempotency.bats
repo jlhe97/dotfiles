@@ -31,7 +31,7 @@ setup() {
   local tmpfile
   export MAIL_PROVIDER_FILE="$REAL_DOTFILES_DIR/bin/mail-provider"
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
+  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | grep -v '^main ' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"
@@ -187,7 +187,7 @@ _uninstall() {
   # reinstall — source install functions again
   local tmpfile
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
+  grep -v '^set -e' "$REAL_DOTFILES_DIR/install.sh" | grep -v '^main ' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"

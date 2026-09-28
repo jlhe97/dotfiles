@@ -16,8 +16,7 @@ fi
 if [[ "$(uname)" == "Darwin" ]]; then
     label="com.jlhe.mail-sync"
     plist="$HOME/Library/LaunchAgents/$label.plist"
-    # launchd does not inherit an interactive PATH; point it at wherever
-    # mbsync/notmuch actually live plus ~/bin.
+    # launchd does not inherit an interactive PATH.
     tools_dir="$(dirname "$(command -v mbsync)")"
     mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
     cat > "$plist" <<EOF
@@ -49,7 +48,6 @@ if [[ "$(uname)" == "Darwin" ]]; then
 </dict>
 </plist>
 EOF
-    # Reload: bootout the old instance (ignore if not loaded), then bootstrap.
     launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$plist"
     echo "mail-timer: launchd agent loaded ($label, every ${INTERVAL}s). Logs: ~/Library/Logs/mail-sync.log"

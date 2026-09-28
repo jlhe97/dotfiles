@@ -1,14 +1,10 @@
 #!/bin/bash
-# Cross-platform GnuPG setup for the kernel patch-signing workflow.
+# GnuPG setup for the kernel patch-signing workflow: the parts install.sh
+# cannot derive from the host — moving the key to a new machine, publishing
+# the public half, and proving the chain end to end.
 #
-# install.sh already does everything that can be derived from the host: it
-# writes gpg-agent.conf with a pinentry that works here, and -- only if the
-# secret key is already present -- turns on git/patatt signing. This script
-# covers the parts it cannot: moving the secret key to a new machine,
-# publishing the public half, and proving the chain end to end.
-#
-# The secret key is never written into the dotfiles repo and never to disk in
-# the clear: --export produces a symmetrically encrypted transfer file.
+# --export produces a symmetrically encrypted transfer file; nothing is ever
+# written to disk in the clear or into this repo.
 set -uo pipefail
 
 KEYSERVER_API="https://keys.openpgp.org"
@@ -43,15 +39,12 @@ require_gpg() {
     fi
 }
 
-# The email this machine signs as. Comes from git, which install.sh has
-# already configured from the same identity as everything else.
+# From git, which install.sh configured from the same identity as everything else.
 signing_email() {
     git config --global user.email 2>/dev/null || true
 }
 
-# Full fingerprint of the local secret key for $1, empty if there is none.
-# Field 10 of an fpr record; --with-colons is the only output format gpg
-# promises not to change between versions.
+# --with-colons is the only stable output format; fpr field 10 is the print.
 secret_fpr() {
     gpg --list-secret-keys --with-colons "$1" 2>/dev/null \
         | awk -F: '/^fpr:/ { print $10; exit }'
@@ -62,15 +55,10 @@ public_fpr() {
         | awk -F: '/^fpr:/ { print $10; exit }'
 }
 
-# Encode a file as a JSON string. keys.openpgp.org's VKS API wants the armored
-# key inside JSON, and an armored key is multi-line, so this needs a real
-# encoder rather than string concatenation.
-# The interpreter b4 runs under, read out of its shebang.
-#
-# b4 imports patatt as a library rather than shelling out to it, so the patatt
-# CLI is usually absent -- Homebrew's b4 keeps it inside a private venv, and
-# `command -v patatt` finds nothing even though signing works perfectly. To
-# check the thing b4 actually uses, we have to ask b4's own interpreter.
+# The VKS API wants the armored key inside JSON, and it is multi-line, so this
+# needs a real encoder rather than string concatenation.
+# b4 imports patatt as a library, so the patatt CLI is usually absent even
+# though signing works. Ask b4's own interpreter about the thing b4 uses.
 patatt_python() {
     local b4_path shebang
     b4_path="$(command -v b4 2>/dev/null)" || return 1
@@ -113,9 +101,8 @@ cmd_check() {
         echo "secret key:    ABSENT (no key at all for this identity)"
     fi
 
-    # gpg-agent.conf is a symlink install.sh generated; show what it resolved
-    # the pinentry to, since a wrong one here is the usual cause of a signing
-    # attempt that hangs instead of prompting.
+    # A wrong pinentry here is the usual cause of a signing attempt that hangs
+    # instead of prompting.
     local agent_conf="$HOME/.gnupg/gpg-agent.conf" pinentry=""
     if [ -f "$agent_conf" ]; then
         pinentry="$(awk '/^pinentry-program/ { print $2 }' "$agent_conf")"
@@ -152,8 +139,7 @@ cmd_check() {
         echo "clear"
     fi
 
-    # Publication is what makes a signature worth anything: an unpublished key
-    # means no recipient can verify it.
+    # An unpublished key means no recipient can verify the signature.
     echo -n "published:     "
     if [ -z "$fpr$pub" ]; then
         echo "n/a (no local key)"
@@ -180,8 +166,8 @@ cmd_publish() {
     fi
 
     tmp="$(mktemp)"
-    # --export is the public half only. Belt and braces: refuse to upload
-    # anything that even mentions a private key block.
+    # --export is the public half already; refuse to upload anything that even
+    # mentions a private key block.
     gpg --export --armor "$fpr" > "$tmp"
     if grep -q 'PRIVATE KEY' "$tmp"; then
         err "refusing to upload: export contains private key material"
@@ -197,9 +183,8 @@ cmd_publish() {
     fi
     printf '{"keytext": %s}' "$(cat "$payload.str")" > "$payload"
 
-    # The VKS HTTPS API rather than `gpg --send-keys`: the hkp/hkps transport
-    # is blocked on some corporate networks (it fails with "Invalid argument"),
-    # while ordinary HTTPS to the same host goes through.
+    # Not `gpg --send-keys`: hkp/hkps is blocked on some corporate networks
+    # ("Invalid argument") while plain HTTPS to the same host goes through.
     response="$(curl -sS --max-time 30 -X POST \
         -H 'Content-Type: application/json' \
         --data-binary "@$payload" \
@@ -237,9 +222,8 @@ cmd_export() {
         exit 1
     fi
 
-    # Symmetric encryption on top of the key's own passphrase. The transfer
-    # file crosses scp, a USB stick or a laptop's Downloads dir, and a bare
-    # --export-secret-keys is readable by anything that picks it up.
+    # Symmetric layer on top of the key's own passphrase: the transfer file
+    # crosses scp or a USB stick, where a bare export is readable by anything.
     ( umask 077 && gpg --export-secret-keys --armor "$fpr" \
         | gpg --symmetric --cipher-algo AES256 --armor --output "$out" )
     local rc=$?
@@ -265,8 +249,8 @@ cmd_import() {
         err "import failed"
         exit 1
     }
-    # An imported key arrives with unknown ownertrust, which makes gpg print a
-    # scary warning on every verification of your own signature.
+    # An imported key arrives with unknown ownertrust, which makes gpg warn on
+    # every verification of your own signature.
     local email fpr
     email="$(signing_email)"
     fpr="$(secret_fpr "$email")"
@@ -320,10 +304,8 @@ cmd_test() {
     rm -rf "$tmp"
     echo "Signature made and verified."
 
-    # gpg working does not prove b4 will sign: b4 goes through patatt, which
-    # resolves its own config and drives gpg itself. Exercise that path for
-    # real -- sign a message through patatt and validate the result -- rather
-    # than just reading git config back and assuming.
+    # gpg working does not prove b4 will sign: patatt resolves its own config
+    # and drives gpg itself, so exercise that path rather than assuming.
     local pk expected="openpgp:$fpr"
     pk="$(git config --global --get patatt.signingkey 2>/dev/null || true)"
     if [ "$pk" != "$expected" ]; then
@@ -338,9 +320,8 @@ cmd_test() {
         return 0
     fi
 
-    # Any failure inside prints a diagnosis instead of a traceback: patatt's
-    # internals are not a stable API, so a version bump should degrade this
-    # check, not break the script.
+    # patatt's internals are not a stable API: a version bump should degrade
+    # this check, not break the script with a traceback.
     "$py" - "$expected" <<'PYEOF'
 import sys
 

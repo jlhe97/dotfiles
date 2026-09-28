@@ -34,7 +34,7 @@ setup() {
   local tmpfile
   export MAIL_PROVIDER_FILE="$DOTFILES_DIR/bin/mail-provider"
   tmpfile="$(mktemp)"
-  grep -v '^set -e' "$DOTFILES_DIR/install.sh" | grep -v '^main ' | grep -v '^# Run main' > "$tmpfile"
+  grep -v '^set -e' "$DOTFILES_DIR/install.sh" | grep -v '^main ' > "$tmpfile"
   # shellcheck disable=SC1090
   source "$tmpfile"
   rm -f "$tmpfile"

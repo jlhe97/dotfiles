@@ -18,9 +18,8 @@ fi
 mkdir -p "$MAIL_DIR"
 
 echo "Syncing $MAIL_PROVIDER (mbsync)..."
-# Don't let a non-fatal mbsync error (e.g. a folder deleted on the server) abort
-# the run before indexing — mail already fetched must still be indexed so neomutt
-# sees it. Capture the status, always index, then surface any failure.
+# A non-fatal mbsync error must not skip indexing: mail already fetched still
+# has to reach the notmuch database.
 mbsync_status=0
 mbsync -a || mbsync_status=$?
 if [ "$mbsync_status" -ne 0 ]; then
