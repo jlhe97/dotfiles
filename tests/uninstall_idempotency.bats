@@ -19,7 +19,7 @@ setup() {
     "$FAKE_DOTFILES/.config/nvim" \
     "$FAKE_DOTFILES/.config/clangd" \
     "$FAKE_DOTFILES/bin"
-  for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .zshrc.local .slconfig .ripgreprc; do
+  for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .slconfig .ripgreprc; do
     touch "$FAKE_DOTFILES/$f"
   done
   touch \
@@ -100,21 +100,36 @@ _uninstall() {
   [ ! -e "$TEST_HOME/.config/clangd" ]
 }
 
-# The generated, gitignored files are symlinked like any other dotfile, so
-# uninstall has to take them down too or it leaves links into the repo behind.
-@test "uninstall removes the generated local-config symlinks" {
+@test "uninstall leaves the generated local-config files in place" {
   _uninstall
-  [ ! -e "$TEST_HOME/.neomutt/local.rc" ]
-  [ ! -e "$TEST_HOME/.zshrc.local" ]
-  [ ! -e "$TEST_HOME/.mbsyncrc" ]
-  [ ! -e "$TEST_HOME/.notmuch-config" ]
-  [ ! -e "$TEST_HOME/.signature" ]
+  [ -f "$TEST_HOME/.neomutt/local.rc" ]
+  [ -f "$TEST_HOME/.zshrc.local" ]
+  [ -f "$TEST_HOME/.mbsyncrc" ]
+  [ -f "$TEST_HOME/.notmuch-config" ]
+  [ -f "$TEST_HOME/.signature" ]
+  [ -f "$TEST_HOME/.gnupg/gpg-agent.conf" ]
 }
 
-@test "uninstall removes the gnupg config symlinks" {
+@test "uninstall reports the generated files it left behind" {
+  local output
+  output="$(main --skip-packages 2>&1)"
+  [[ "$output" == *"machine-specific file"* ]]
+  [[ "$output" == *".signature"* ]]
+}
+
+@test "uninstall removes a pre-migration generated symlink into the repo" {
+  rm -f "$TEST_HOME/.mbsyncrc"
+  touch "$FAKE_DOTFILES/.mbsyncrc"
+  ln -s "$FAKE_DOTFILES/.mbsyncrc" "$TEST_HOME/.mbsyncrc"
+
+  _uninstall
+
+  [ ! -e "$TEST_HOME/.mbsyncrc" ]
+}
+
+@test "uninstall removes the gpg.conf symlink" {
   _uninstall
   [ ! -e "$TEST_HOME/.gnupg/gpg.conf" ]
-  [ ! -e "$TEST_HOME/.gnupg/gpg-agent.conf" ]
 }
 
 # The keyring is not ours to delete: uninstall removes the two config symlinks
