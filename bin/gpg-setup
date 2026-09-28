@@ -113,9 +113,8 @@ cmd_check() {
         echo "secret key:    ABSENT (no key at all for this identity)"
     fi
 
-    # gpg-agent.conf is a symlink install.sh generated; show what it resolved
-    # the pinentry to, since a wrong one here is the usual cause of a signing
-    # attempt that hangs instead of prompting.
+    # A wrong pinentry here is the usual cause of a signing attempt that hangs
+    # instead of prompting.
     local agent_conf="$HOME/.gnupg/gpg-agent.conf" pinentry=""
     if [ -f "$agent_conf" ]; then
         pinentry="$(awk '/^pinentry-program/ { print $2 }' "$agent_conf")"

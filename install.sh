@@ -8,7 +8,6 @@ set -e
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -33,7 +32,6 @@ MAIL_PROVIDER_FILE="${MAIL_PROVIDER_FILE:-$DOTFILES_DIR/bin/mail-provider}"
 # shellcheck source=/dev/null
 . "$MAIL_PROVIDER_FILE"
 
-# checking if env requires a proxy to spoke to the interwebz.
 http_connect_proxy() {
     local p="${PROXY_HOST_PORT:-}"
     [ -z "$p" ] && p="$(git config --global --get http.proxy 2>/dev/null || true)"
@@ -56,7 +54,7 @@ proxy_curl() {
     curl "$@"
 }
 
-# Files to install (relative to dotfiles directory). Committed files only.
+# Files to install (relative to dotfiles directory)
 FILES=(
     ".tmux.conf"
     ".vimrc"
@@ -70,7 +68,7 @@ FILES=(
     ".ripgreprc"
 )
 
-# Machine-specific files generated into $HOME as real files, never symlinked.
+# Never symlinked: a $HOME backup captures a symlink, not what it points at.
 GENERATED=(
     "$HOME/.zshrc.local"
     "$HOME/.neomutt/local.rc"
@@ -94,7 +92,6 @@ install_ghostty() {
     else
         info "Installing ghostty..."
         if command -v apt &> /dev/null; then
-            # Add Ghostty apt repository for Debian/Ubuntu
             sudo apt update && sudo apt install -y curl gpg
             curl -fsSL https://pkg.ghostty.org/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/ghostty-keyring.gpg
             echo "deb [signed-by=/usr/share/keyrings/ghostty-keyring.gpg] https://pkg.ghostty.org/apt stable main" | sudo tee /etc/apt/sources.list.d/ghostty.list
@@ -278,8 +275,6 @@ pinentry_program() {
     return 1
 }
 
-# Generate .gnupg/gpg-agent.conf for this machine and make sure the directory
-# GnuPG keeps its keyring in has the permissions it insists on.
 configure_gnupg() {
     local gnupg_home="$HOME/.gnupg"
     # 700 is not cosmetic: gpg refuses to use a homedir others can read, and
@@ -475,7 +470,6 @@ install_ohmyzsh() {
         info "oh-my-zsh is already installed"
     else
         info "Installing oh-my-zsh..."
-        # Install oh-my-zsh without running zsh or modifying .zshrc
         RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
         info "oh-my-zsh installed successfully"
     fi
@@ -573,16 +567,13 @@ backup_and_link() {
     local src="$1"
     local dest="$2"
 
-    # Already points to the right place — nothing to do
     if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$src" ]; then
         return 0
     fi
 
     if [ -L "$dest" ]; then
-        # Stale symlink pointing somewhere else — just replace it
         rm "$dest"
     elif [ -e "$dest" ]; then
-        # Real file or directory — back it up
         mkdir -p "$BACKUP_DIR"
         local backup_path
         backup_path="$BACKUP_DIR/$(basename "$dest")"
@@ -594,9 +585,8 @@ backup_and_link() {
     info "Linked $dest -> $src"
 }
 
-# Replace a leftover symlink into the repo with a real file holding the same
-# content. Without this, the generation code below writes through the link and
-# silently edits $DOTFILES_DIR instead of $HOME.
+# Must run before the generation code below, which would otherwise write
+# through a leftover symlink and silently edit $DOTFILES_DIR instead of $HOME.
 materialize_local_file() {
     local dest="$1" link_target
 
@@ -625,13 +615,11 @@ resolve_identity() {
         existing_email="$(grep 'imap_user' "$local_rc" 2>/dev/null | sed 's/.*= *"\(.*\)"/\1/')"
     fi
 
-    # --name/--email flags take priority (CI-friendly, allows override)
     if [ -n "$USER_NAME" ] && [ -n "$USER_EMAIL" ]; then
         info "Using provided identity: $USER_NAME <$USER_EMAIL>"
         return 0
     fi
 
-    # Reuse existing identity silently — no prompt needed
     if [ -n "$existing_name" ] && [ -n "$existing_email" ]; then
         info "Using existing identity: $existing_name <$existing_email>"
         USER_NAME="$existing_name"
@@ -639,7 +627,6 @@ resolve_identity() {
         return 0
     fi
 
-    # No identity anywhere — must prompt interactively
     read -r -p "Enter your full name (e.g. Jane Smith): " USER_NAME
     echo ""
     read -r -p "Enter your email address: " USER_EMAIL
@@ -681,7 +668,6 @@ ca_bundle_file() {
 MAIL_BRIDGE_IMAP_PORT=1993
 MAIL_BRIDGE_SMTP_PORT=1465
 
-# we probe if we can access directly or we need to go through a proxy bridge
 mail_transport_mode() {
     if command -v openssl &>/dev/null && \
        timeout 10 openssl s_client -connect "$MAIL_IMAP_HOST:$MAIL_IMAP_PORT" \
@@ -914,16 +900,12 @@ main() {
 
     resolve_identity
 
-    # neomutt header cache dir (speeds up opening large notmuch vfolders)
     mkdir -p "$HOME/.cache/neomutt"
 
     if [[ "$(uname)" == "Darwin" ]]; then
-        # macOS: declarative install via Brewfile (tmux, neovim, neomutt, sapling, b4, ghostty, zsh)
         install_via_brewfile || warn "Brewfile install incomplete — some packages may be missing"
         echo ""
     else
-        # Linux: package list file (apt/dnf/pacman) for standard packages,
-        # then individual functions for tools needing custom install steps
         install_via_packagefile || warn "some packages failed — check output above"
         echo ""
         # After the package file, so it can top up a too-old distro neovim, and
@@ -960,7 +942,6 @@ main() {
         materialize_local_file "$generated"
     done
 
-    # Create local override files if they don't exist (machine-specific)
     if [ ! -f "$HOME/.zshrc.local" ]; then
         touch "$HOME/.zshrc.local"
         info "Created ~/.zshrc.local (add machine-specific shell config here)"
@@ -1002,7 +983,6 @@ main() {
         info "Written ~/.neomutt/local.rc with identity config for $USER_NAME <$USER_EMAIL>"
     fi
 
-    # Signature appended to outgoing mail.
     local signature="$HOME/.signature"
     if [ -s "$signature" ]; then
         info "Using existing ~/.signature"
@@ -1011,8 +991,8 @@ main() {
         info "Written ~/.signature for $USER_NAME"
     fi
 
-    # Generate ~/.mbsyncrc (machine-specific; contains email). Password comes
-    # from bin/mail-pass at sync time, so nothing secret is written here.
+    # Password comes from bin/mail-pass at sync time, so nothing secret is
+    # written here.
     local mbsyncrc="$HOME/.mbsyncrc"
     {
         echo "IMAPAccount $MAIL_PROVIDER"
@@ -1053,7 +1033,6 @@ main() {
     } > "$mbsyncrc"
     info "Written ~/.mbsyncrc for $USER_EMAIL"
 
-    # Generate ~/.notmuch-config (machine-specific; contains identity).
     local notmuch_config="$HOME/.notmuch-config"
     {
         echo "[database]"
@@ -1075,7 +1054,6 @@ main() {
     } > "$notmuch_config"
     info "Written ~/.notmuch-config for $USER_NAME <$USER_EMAIL>"
 
-    # Install regular files
     for file in "${FILES[@]}"; do
         src="$DOTFILES_DIR/$file"
         dest="$HOME/$file"
@@ -1088,13 +1066,11 @@ main() {
         fi
     done
 
-    # Install directories
     for dir in "${DIRS[@]}"; do
         src="$DOTFILES_DIR/$dir"
         dest="$HOME/$dir"
 
         if [ -d "$src" ]; then
-            # Ensure parent directory exists
             mkdir -p "$(dirname "$dest")"
             backup_and_link "$src" "$dest"
         else
@@ -1178,5 +1154,4 @@ main() {
     echo "=========================================="
 }
 
-# Run main function
 main "$@"
