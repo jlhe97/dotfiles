@@ -1,9 +1,10 @@
 #!/bin/bash
-# Pull Fastmail into the local maildir and (re)index it with notmuch.
+# Pull mail into the local maildir and (re)index it with notmuch.
 # Run periodically (launchd/systemd timer) or on neomutt launch (see bin/mutt).
 set -euo pipefail
 
-MAIL_DIR="$HOME/Mail/fastmail"
+# shellcheck source=/dev/null
+. "$(dirname "$(readlink -f "$0")")/mail-provider"
 
 if ! command -v mbsync &>/dev/null; then
     echo "mail-sync: mbsync not found (install isync)" >&2
@@ -16,7 +17,7 @@ fi
 
 mkdir -p "$MAIL_DIR"
 
-echo "Syncing Fastmail (mbsync)..."
+echo "Syncing $MAIL_PROVIDER (mbsync)..."
 # Don't let a non-fatal mbsync error (e.g. a folder deleted on the server) abort
 # the run before indexing — mail already fetched must still be indexed so neomutt
 # sees it. Capture the status, always index, then surface any failure.

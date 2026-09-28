@@ -1,0 +1,23 @@
+#!/bin/bash
+# Single source of truth for which mail provider this setup talks to.
+# Sourced by bin/mail-* and by install.sh; not meant to be run directly.
+# Override any of these in ~/.config/dotfiles/mail.conf (gitignored).
+
+MAIL_PROVIDER="${MAIL_PROVIDER:-fastmail}"
+MAIL_IMAP_HOST="${MAIL_IMAP_HOST:-imap.fastmail.com}"
+MAIL_IMAP_PORT="${MAIL_IMAP_PORT:-993}"
+MAIL_SMTP_HOST="${MAIL_SMTP_HOST:-smtp.fastmail.com}"
+MAIL_SMTP_PORT="${MAIL_SMTP_PORT:-587}"
+MAIL_SMTP_TLS_PORT="${MAIL_SMTP_TLS_PORT:-465}"
+MAIL_TOKEN_URL="${MAIL_TOKEN_URL:-https://www.fastmail.com/settings/security/tokens}"
+MAIL_APP_PASSWORD_LEN="${MAIL_APP_PASSWORD_LEN:-16}"
+
+# shellcheck source=/dev/null
+[ -f "$HOME/.config/dotfiles/mail.conf" ] && . "$HOME/.config/dotfiles/mail.conf"
+
+MAIL_DIR="${MAIL_DIR:-$HOME/Mail/$MAIL_PROVIDER}"
+MAIL_SECRET_SERVICE="${MAIL_SECRET_SERVICE:-$MAIL_PROVIDER-imap}"
+MAIL_BRIDGE_NAME="${MAIL_BRIDGE_NAME:-stunnel-$MAIL_PROVIDER}"
+MAIL_BRIDGE_CONF="${MAIL_BRIDGE_CONF:-$HOME/.config/stunnel/$MAIL_PROVIDER.conf}"
+MAIL_BRIDGE_LOG="${MAIL_BRIDGE_LOG:-$HOME/.local/state/stunnel-$MAIL_PROVIDER.log}"
+MAIL_CRED_FILE="${MAIL_CRED_FILE:-$HOME/.local/state/mail-pass.cred}"
