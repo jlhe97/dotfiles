@@ -3,7 +3,7 @@
 # Dotfiles Installation Script
 # Symlinks committed files into $HOME; generates machine-specific ones there.
 
-set -e
+set -eo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
