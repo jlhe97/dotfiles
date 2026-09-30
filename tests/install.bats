@@ -677,6 +677,32 @@ EOF
   [[ "$(cat "$log")" == *"chsh"* ]]
 }
 
+@test "set_default_shell works with SHELL unset under nounset" {
+  cat > "$MOCK_BIN/zsh" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  cat > "$MOCK_BIN/chsh" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  cat > "$MOCK_BIN/grep" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/zsh" "$MOCK_BIN/chsh" "$MOCK_BIN/grep"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+  unset SHELL
+  set -u
+
+  run set_default_shell
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Setting zsh as default shell"* ]]
+}
+
 # ---------------------------------------------------------------------------
 # install_ghostty / install_sapling — already-installed fast paths
 # ---------------------------------------------------------------------------
@@ -1469,4 +1495,17 @@ setup_bridge_stubs() {
   [ -f "$TEST_HOME/.config/systemd/user/stunnel-posteo.service" ]
   grep -q '^account posteo' "$TEST_HOME/.msmtprc"
   ! grep -qi fastmail "$TEST_HOME/.msmtprc"
+}
+
+@test "resolve_identity survives a local.rc without real_name under pipefail" {
+  DOTFILES_DIR="$TEST_HOME"
+  mkdir -p "$TEST_HOME/.neomutt"
+  printf 'set imap_user = "existing@example.com"\n' > "$TEST_HOME/.neomutt/local.rc"
+  USER_NAME="Flag User"
+  USER_EMAIL="flag@example.com"
+  set -o pipefail
+
+  resolve_identity
+
+  [ "$USER_NAME" = "Flag User" ]
 }
