@@ -26,6 +26,7 @@ vim.call('plug#', 'RRethy/vim-illuminate')
 vim.call('plug#', 'mg979/vim-visual-multi')
 vim.call('plug#', 'MunifTanjim/nui.nvim')   -- required by noice
 vim.call('plug#', 'folke/noice.nvim')       -- floating : cmdline (see below)
+vim.call('plug#', 'NMAC427/guess-indent.nvim') -- best guess indentation convention
 
 -- vim-visual-multi: Ctrl+D selects the next occurrence (Ctrl+N is taken by NERDTree)
 vim.g.VM_maps = {
@@ -49,6 +50,11 @@ vim.o.background = 'dark'
 -- vim.cmd('...') not vim.cmd.colorscheme(...): Lua evaluates the argument
 -- first, so the index would happen outside the pcall and take the config down.
 pcall(vim.cmd, 'colorscheme vscode')
+
+-- Match an existing file's indentation when no .editorconfig speaks for it
+pcall(function()
+  require('guess-indent').setup({})
+end)
 
 -- command_palette centres the : cmdline; bottom_search deliberately leaves /
 -- and ? on the last line. noice wants 0.9, so on 0.8 the pcall leaves the
