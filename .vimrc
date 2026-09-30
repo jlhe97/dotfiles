@@ -1,6 +1,9 @@
 " Set compatibility to Vim only.
 set nocompatible
 
+" editorconfig is in 9.1 so we add silent to quiet failure with older versions
+silent! packadd! editorconfig
+
 " Helps force plug-ins to load correctly when it is turned back on below.
 filetype off
 
@@ -24,9 +27,10 @@ set mouse=a
 " Uncomment below to set the max textwidth. Use a value corresponding to the width of your screen.
 set textwidth=79
 set formatoptions=tcqrn1
-set tabstop=2
-set shiftwidth=2
-set softtabstop=2
+" Fallback only; .editorconfig calls the shots
+set tabstop=8
+set shiftwidth=4
+set softtabstop=-1
 set expandtab
 set noshiftround
 
@@ -80,3 +84,6 @@ autocmd BufWinEnter *.* silent loadview
 
 " Autoformat Rust files on save
 let g:rustfmt_autosave = 1
+
+" prevent views overriding .editorconfig
+set viewoptions-=options

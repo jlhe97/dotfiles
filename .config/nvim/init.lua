@@ -26,6 +26,7 @@ vim.call('plug#', 'RRethy/vim-illuminate')
 vim.call('plug#', 'mg979/vim-visual-multi')
 vim.call('plug#', 'MunifTanjim/nui.nvim')   -- required by noice
 vim.call('plug#', 'folke/noice.nvim')       -- floating : cmdline (see below)
+vim.call('plug#', 'NMAC427/guess-indent.nvim') -- best guess indentation convention
 
 -- vim-visual-multi: Ctrl+D selects the next occurrence (Ctrl+N is taken by NERDTree)
 vim.g.VM_maps = {
@@ -34,11 +35,12 @@ vim.g.VM_maps = {
 }
 vim.call('plug#end')
 
+-- fallback only if .editorconfig and guess-indent don't set it for us
 vim.opt.number = true
-vim.opt.expandtab = false
+vim.opt.expandtab = true
 vim.opt.tabstop = 8
-vim.opt.shiftwidth = 8
-vim.opt.softtabstop = 8
+vim.opt.shiftwidth = 4
+vim.opt.softtabstop = -1 -- follow shiftwidth
 vim.opt.autoindent = true
 vim.opt.signcolumn = 'yes'
 vim.opt.updatetime = 300
@@ -49,6 +51,11 @@ vim.o.background = 'dark'
 -- vim.cmd('...') not vim.cmd.colorscheme(...): Lua evaluates the argument
 -- first, so the index would happen outside the pcall and take the config down.
 pcall(vim.cmd, 'colorscheme vscode')
+
+-- Match an existing file's indentation when no .editorconfig speaks for it
+pcall(function()
+  require('guess-indent').setup({})
+end)
 
 -- command_palette centres the : cmdline; bottom_search deliberately leaves /
 -- and ? on the last line. noice wants 0.9, so on 0.8 the pcall leaves the
@@ -279,6 +286,19 @@ local function exclude_clangd_cache(root)
   table.insert(lines, ".cache/")
   pcall(vim.fn.writefile, lines, path)
 end
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "sh" },
+  callback = function(ev)
+    local dir = vim.fs.dirname(vim.api.nvim_buf_get_name(ev.buf))
+    if kernel_root(dir) then
+      vim.bo[ev.buf].expandtab = false
+      vim.bo[ev.buf].shiftwidth = 8
+      vim.bo[ev.buf].softtabstop = 0
+    end
+  end,
+  desc = "Tab-indent shell scripts in kernel trees",
+})
 
 vim.api.nvim_create_autocmd("FileType", {
   pattern = {"c", "cpp"},
