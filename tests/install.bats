@@ -677,6 +677,32 @@ EOF
   [[ "$(cat "$log")" == *"chsh"* ]]
 }
 
+@test "set_default_shell works with SHELL unset under nounset" {
+  cat > "$MOCK_BIN/zsh" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  cat > "$MOCK_BIN/chsh" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  cat > "$MOCK_BIN/grep" << 'EOF'
+#!/bin/bash
+exit 0
+EOF
+  chmod +x "$MOCK_BIN/zsh" "$MOCK_BIN/chsh" "$MOCK_BIN/grep"
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+  unset SHELL
+  set -u
+
+  run set_default_shell
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Setting zsh as default shell"* ]]
+}
+
 # ---------------------------------------------------------------------------
 # install_ghostty / install_sapling — already-installed fast paths
 # ---------------------------------------------------------------------------

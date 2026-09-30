@@ -3,7 +3,7 @@
 # Dotfiles Installation Script
 # Symlinks committed files into $HOME; generates machine-specific ones there.
 
-set -eo pipefail
+set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
@@ -406,7 +406,7 @@ set_default_shell() {
     local zsh_path
     zsh_path="$(command -v zsh)"
 
-    if [ "$SHELL" = "$zsh_path" ]; then
+    if [ "${SHELL:-}" = "$zsh_path" ]; then
         info "zsh is already the default shell"
     else
         info "Setting zsh as default shell..."
