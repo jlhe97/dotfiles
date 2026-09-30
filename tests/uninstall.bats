@@ -241,6 +241,26 @@ remove_dotfile_symlinks() {
   [[ "$(cat "$chsh_log")" == *"$mock_bash"* ]]
 }
 
+@test "restore_default_shell works with SHELL unset under nounset" {
+  local mock_bash="$TEST_HOME/mock_bin/bash"
+  mkdir -p "$TEST_HOME/mock_bin"
+  printf '#!/bin/bash\nexit 0\n'                 > "$mock_bash"
+  printf "#!/bin/bash\necho '%s'\n" "$mock_bash" > "$TEST_HOME/mock_bin/which"
+  printf '#!/bin/bash\nexit 0\n'                 > "$TEST_HOME/mock_bin/chsh"
+  chmod +x "$mock_bash" "$TEST_HOME/mock_bin/which" "$TEST_HOME/mock_bin/chsh"
+  local orig_path="$PATH"
+  export PATH="$TEST_HOME/mock_bin:$PATH"
+  unset SHELL
+  set -u
+
+  run restore_default_shell
+
+  export PATH="$orig_path"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Restoring bash"* ]]
+}
+
+
 # ---------------------------------------------------------------------------
 # uninstall_ghostty
 # ---------------------------------------------------------------------------

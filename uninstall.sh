@@ -3,7 +3,7 @@
 # Dotfiles Uninstallation Script
 # This script removes the symlinks created by install.sh
 
-set -e
+set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -164,7 +164,7 @@ restore_default_shell() {
     local bash_path
     bash_path="$(which bash)"
 
-    if [ "$SHELL" != "$bash_path" ]; then
+    if [ "${SHELL:-}" != "$bash_path" ]; then
         info "Restoring bash as default shell..."
         chsh -s "$bash_path"
         info "Default shell changed to bash (restart your terminal to take effect)"
