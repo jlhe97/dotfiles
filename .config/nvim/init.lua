@@ -35,11 +35,12 @@ vim.g.VM_maps = {
 }
 vim.call('plug#end')
 
+-- fallback only if .editorconfig and guess-indent don't set it for us
 vim.opt.number = true
-vim.opt.expandtab = false
+vim.opt.expandtab = true
 vim.opt.tabstop = 8
-vim.opt.shiftwidth = 8
-vim.opt.softtabstop = 8
+vim.opt.shiftwidth = 4
+vim.opt.softtabstop = -1 -- follow shiftwidth
 vim.opt.autoindent = true
 vim.opt.signcolumn = 'yes'
 vim.opt.updatetime = 300
@@ -285,6 +286,19 @@ local function exclude_clangd_cache(root)
   table.insert(lines, ".cache/")
   pcall(vim.fn.writefile, lines, path)
 end
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "sh" },
+  callback = function(ev)
+    local dir = vim.fs.dirname(vim.api.nvim_buf_get_name(ev.buf))
+    if kernel_root(dir) then
+      vim.bo[ev.buf].expandtab = false
+      vim.bo[ev.buf].shiftwidth = 8
+      vim.bo[ev.buf].softtabstop = 0
+    end
+  end,
+  desc = "Tab-indent shell scripts in kernel trees",
+})
 
 vim.api.nvim_create_autocmd("FileType", {
   pattern = {"c", "cpp"},
