@@ -84,3 +84,6 @@ autocmd BufWinEnter *.* silent loadview
 
 " Autoformat Rust files on save
 let g:rustfmt_autosave = 1
+
+" prevent views overriding .editorconfig
+set viewoptions-=options
