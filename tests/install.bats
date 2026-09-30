@@ -1470,3 +1470,16 @@ setup_bridge_stubs() {
   grep -q '^account posteo' "$TEST_HOME/.msmtprc"
   ! grep -qi fastmail "$TEST_HOME/.msmtprc"
 }
+
+@test "resolve_identity survives a local.rc without real_name under pipefail" {
+  DOTFILES_DIR="$TEST_HOME"
+  mkdir -p "$TEST_HOME/.neomutt"
+  printf 'set imap_user = "existing@example.com"\n' > "$TEST_HOME/.neomutt/local.rc"
+  USER_NAME="Flag User"
+  USER_EMAIL="flag@example.com"
+  set -o pipefail
+
+  resolve_identity
+
+  [ "$USER_NAME" = "Flag User" ]
+}

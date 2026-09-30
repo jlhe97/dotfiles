@@ -312,7 +312,7 @@ signing_key_fingerprint() {
     command -v gpg &>/dev/null || return 0
     # --with-colons is the only stable output format; fpr field 10 is the print.
     gpg --list-secret-keys --with-colons "$1" 2>/dev/null \
-        | awk -F: '/^fpr:/ { print $10; exit }'
+        | awk -F: '/^fpr:/ { print $10; exit }' || true
 }
 
 # b4 signs through patatt. The "openpgp:" prefix makes patatt sign via gpg
@@ -565,8 +565,8 @@ resolve_identity() {
     local existing_name="" existing_email=""
 
     if [ -f "$local_rc" ]; then
-        existing_name="$(grep 'real_name' "$local_rc" 2>/dev/null | sed 's/.*= *"\(.*\)"/\1/')"
-        existing_email="$(grep 'imap_user' "$local_rc" 2>/dev/null | sed 's/.*= *"\(.*\)"/\1/')"
+        existing_name="$(sed -n '/real_name/s/.*= *"\(.*\)"/\1/p' "$local_rc")"
+        existing_email="$(sed -n '/imap_user/s/.*= *"\(.*\)"/\1/p' "$local_rc")"
     fi
 
     if [ -n "$USER_NAME" ] && [ -n "$USER_EMAIL" ]; then
@@ -591,7 +591,7 @@ resolve_identity() {
 # trust store. Always returns 0.
 neomutt_ca_line() {
     command -v neomutt &>/dev/null || return 0
-    neomutt -v 2>/dev/null | grep -qi gnutls || return 0
+    neomutt -v 2>/dev/null | grep -i gnutls >/dev/null || return 0
     local f
     f="$(ca_bundle_file)" || return 0
     echo "set ssl_ca_certificates_file = \"$f\""
@@ -918,7 +918,7 @@ main() {
             if command -v neomutt &>/dev/null && \
                neomutt -Q header_cache_backend &>/dev/null; then
                 local hcb
-                hcb="$(neomutt -v 2>/dev/null | grep -oE '\+HAVE_(LMDB|GDBM|TOKYOCABINET|KYOTOCABINET|BDB)' | head -1)"
+                hcb="$(neomutt -v 2>/dev/null | grep -oE '\+HAVE_(LMDB|GDBM|TOKYOCABINET|KYOTOCABINET|BDB)' | head -1 || true)"
                 case "$hcb" in
                     *LMDB*)          echo 'set header_cache_backend = "lmdb"' ;;
                     *GDBM*)          echo 'set header_cache_backend = "gdbm"' ;;
