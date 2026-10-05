@@ -72,8 +72,9 @@ link. Missing → link.
 | `uninstall.bats` | every helper in `uninstall.sh` |
 | `idempotency.bats` | `main()` 2–3× with system ops stubbed: no extra backups, stable symlinks, local.rc write-guard, symlink→real-file migration |
 | `uninstall_idempotency.bats` | install → uninstall → reinstall, foreign-symlink and real-file safety |
+| `git-sl.bats` | `bin/git-sl` against a throwaway repo with fake remote refs |
 
-All four source the script with `set -e` and the `main` call stripped, so
+The four install/uninstall files source the script with `set -e` and the `main` call stripped, so
 functions can be tested in isolation:
 
 ```bash
