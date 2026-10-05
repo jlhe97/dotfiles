@@ -45,6 +45,7 @@ TARGETS=(
     "$HOME/.neomutt/linux.rc"
     "$HOME/.gnupg/gpg.conf"
     "$HOME/bin"
+    "$HOME/.config/git/config"
 )
 
 # Never removed, only reported: .zshrc.local and .signature are hand-edited.

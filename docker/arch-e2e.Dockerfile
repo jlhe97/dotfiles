@@ -29,6 +29,7 @@ RUN test -L "$HOME/.tmux.conf" \
     && test -L "$HOME/.neomuttrc" \
     && test -L "$HOME/.config/nvim" \
     && test -L "$HOME/.config/clangd" \
+    && test -L "$HOME/.config/git/config" \
     && test -L "$HOME/.slconfig" \
     && test -L "$HOME/.ripgreprc" \
     && test -L "$HOME/.neomutt/linux.rc" \

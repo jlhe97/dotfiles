@@ -18,6 +18,7 @@ setup() {
     "$FAKE_DOTFILES/.gnupg" \
     "$FAKE_DOTFILES/.config/nvim" \
     "$FAKE_DOTFILES/.config/clangd" \
+    "$FAKE_DOTFILES/.config/git" \
     "$FAKE_DOTFILES/bin"
   for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .slconfig .ripgreprc; do
     touch "$FAKE_DOTFILES/$f"
@@ -25,7 +26,8 @@ setup() {
   touch \
     "$FAKE_DOTFILES/.neomutt/macos.rc" \
     "$FAKE_DOTFILES/.neomutt/linux.rc" \
-    "$FAKE_DOTFILES/.gnupg/gpg.conf"
+    "$FAKE_DOTFILES/.gnupg/gpg.conf" \
+    "$FAKE_DOTFILES/.config/git/config"
 
   # --- Source install.sh and run it to lay down symlinks ---
   local tmpfile
@@ -98,6 +100,7 @@ _uninstall() {
   _uninstall
   [ ! -e "$TEST_HOME/.config/nvim" ]
   [ ! -e "$TEST_HOME/.config/clangd" ]
+  [ ! -e "$TEST_HOME/.config/git/config" ]
 }
 
 @test "uninstall leaves the generated local-config files in place" {
