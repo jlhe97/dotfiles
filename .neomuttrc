@@ -40,6 +40,8 @@ set copy = yes
 
 # --- Performance (large local mailboxes) ---
 # Cache parsed headers so re-opening a big vfolder doesn't re-read every file.
+# NeoMutt's validator rejects header_cache unless a backend was set first.
+ifdef lmdb "set header_cache_backend = lmdb"
 set header_cache = "~/.cache/neomutt"
 # Trust the cache instead of stat-ing every message file to verify freshness.
 set maildir_header_cache_verify = no
