@@ -21,11 +21,5 @@ export TERM=xterm-256color
 export CMAKE_EXPORT_COMPILE_COMMANDS=ON
 export RIPGREP_CONFIG_PATH="$HOME/.ripgreprc"
 
-# gpg-agent has to be told which terminal to draw the passphrase prompt on.
-# Without this a curses pinentry -- what install.sh picks over ssh and on
-# headless boxes -- cannot find a tty and signing fails with "Inappropriate
-# ioctl for device" rather than prompting. zsh keeps the current tty in $TTY.
-export GPG_TTY=$TTY
-
 # Source local overrides (not committed to public dotfiles)
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local

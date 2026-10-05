@@ -71,7 +71,7 @@ jobs:
         env:
           MAIL_MODE: direct
       - name: Verify packages on PATH
-        run: command -v tmux && command -v nvim && command -v neomutt && command -v zsh && command -v mbsync && command -v notmuch && command -v gpg && command -v pinentry-mac && command -v fzf && command -v rg
+        run: command -v tmux && command -v nvim && command -v neomutt && command -v zsh && command -v mbsync && command -v notmuch && command -v gpg && command -v fzf && command -v rg
       - name: Verify dotfile symlinks
         run: |
           test -L "$HOME/.tmux.conf"
@@ -85,25 +85,19 @@ jobs:
           test -L "$HOME/.slconfig"
           test -L "$HOME/.ripgreprc"
           test -L "$HOME/.neomutt/macos.rc"
-          test -L "$HOME/.gnupg/gpg.conf"
-          test -f "$HOME/.gnupg/gpg-agent.conf"
           test -L "$HOME/bin"
       - name: Verify generated files are real files, not repo symlinks
         run: |
-          for f in .zshrc.local .neomutt/local.rc .mbsyncrc .notmuch-config .signature .gnupg/gpg-agent.conf; do
+          for f in .zshrc.local .neomutt/local.rc .mbsyncrc .notmuch-config .signature; do
             test -f "$HOME/$f"
             test ! -L "$HOME/$f"
           done
           test ! -e "$GITHUB_WORKSPACE/.mbsyncrc"
-      - name: Verify gnupg homedir permissions and pinentry choice
-        run: |
-          test "$(stat -f %A "$HOME/.gnupg")" = "700"
-          grep -q 'pinentry-mac' "$HOME/.gnupg/gpg-agent.conf"
-      - name: Verify patch workflow config, with signing correctly left off
+      - name: Verify patch workflow config, sending unsigned
         run: |
           test "$(git config --global --get sendemail.smtpserver)" = "smtp.fastmail.com"
           git config --global --get-all 'credential.smtp://smtp.fastmail.com:587.helper' | grep -q mail-pass
-          test -z "$(git config --global --get patatt.signingkey || true)"
+          test "$(git config --global --get b4.send-no-patatt-sign)" = "yes"
       - name: Verify nvim plugins installed
         run: test -d "$HOME/.local/share/nvim/plugged"
       - name: Verify the launchd bridge branch

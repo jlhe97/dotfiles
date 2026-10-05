@@ -8,7 +8,7 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 bats tests/                                          # all tests
 bats tests/install.bats                              # one file
 bats tests/install.bats --filter "backup_and_link"   # one test
-shellcheck install.sh uninstall.sh bin/mail-pass bin/gpg-setup   # same set CI lints
+shellcheck install.sh uninstall.sh bin/*   # same set CI lints
 
 ./install.sh --name "Your Name" --email "you@example.com"   # both flags required
 ./uninstall.sh --skip-packages
@@ -33,7 +33,7 @@ message, not the source.
 | `GENERATED` | absolute `$HOME` paths written as **real files, never symlinks** |
 
 `GENERATED` holds `.zshrc.local`, `.neomutt/local.rc`, `.mbsyncrc`,
-`.notmuch-config`, `.signature`, `.gnupg/gpg-agent.conf`. They are gitignored,
+`.notmuch-config`, `.signature`. They are gitignored,
 so symlinking them into the repo meant nothing carried them — and hid them from
 anything backing up `$HOME` (dotsync2 stores a symlink, not its target, so a
 rebuilt devserver got dangling links). `materialize_local_file()` converts a
@@ -42,7 +42,7 @@ generation block would write through the link into `$DOTFILES_DIR`.
 
 `main()`: resolve identity (`--name`/`--email` → existing `~/.neomutt/local.rc`
 → prompt) → packages (Brewfile on macOS, package list on Linux) → git/sapling
-identity → gnupg → patch workflow → oh-my-zsh → generate the `GENERATED` files
+identity → patch workflow → oh-my-zsh → generate the `GENERATED` files
 → `backup_and_link()` over `FILES`/`DIRS` → vim/nvim plugins.
 
 `uninstall.sh` mirrors the split: `TARGETS` removes only symlinks pointing into
@@ -139,12 +139,10 @@ an stunnel bridge on loopback plus `~/.msmtprc`. Those land in
 `~/.config/systemd/user/` and are **not** covered by `uninstall.sh`'s arrays —
 `remove_mail_services()` handles them.
 
-## Patch signing
+## Sending patches
 
-Patches go out via `git send-email`/`b4` through the provider's SMTP, signed
-with whichever OpenPGP key this machine holds for the configured identity.
-Identity comes from `--name`/`--email`; no key material or fingerprint is in
-this repo. `gpg-setup --check` shows what a machine resolved.
+Patches go out via `git send-email`/`b4` through the provider's SMTP, with the
+identity from `--name`/`--email`.
 
 `configure_patch_workflow()` sets `sendemail.*` and a **URL-scoped** credential
 helper (`credential.smtp://$MAIL_SMTP_HOST:$MAIL_SMTP_PORT.helper`) shelling out
@@ -153,23 +151,10 @@ serves GitHub. It has two values: an empty one to reset anything inherited from
 a broader scope, then the real one. `sendemail.smtppass` must stay **unset**;
 b4 only falls back to `git credential fill` when it is empty.
 
-**Signing is gated on the key being present locally.** `signing_key_fingerprint()`
-finds nothing → no signing config at all. That single condition is what makes
-`install.sh` safe in a container or on a fresh devserver, and the e2e
-Dockerfiles assert the negative case. An explicit `user.signingKey` or
-`patatt.signingkey` is never clobbered. `commit.gpgsign` is left alone: signing
-list patches is a different decision from signing every commit on the machine.
-
-`~/.gnupg` is forced to 700 and holds two config files:
-
-- `gpg.conf` — committed, symlinked, identical everywhere.
-- `gpg-agent.conf` — generated per machine as a real file, because the pinentry
-  path is the one genuinely OS-specific piece (`pinentry-mac`, a graphical
-  pinentry, or `pinentry-curses` headless). `.zshrc` exports `GPG_TTY`, without
-  which the curses prompt fails instead of prompting.
-
-`bin/gpg-setup` covers what the installer cannot derive: `--check`, `--publish`,
-`--export`/`--import` (encrypted transfer file), `--enable-signing`, `--test`.
-`--publish` uses the keys.openpgp.org VKS **HTTPS** API rather than
-`gpg --send-keys`, because hkp/hkps is blocked on the corporate network — it
-fails with "Invalid argument" while plain HTTPS to the same host works.
+**Patches are unsigned.** It also sets `b4.send-no-patatt-sign yes`: b4 signs
+with patatt by default and `b4 send` fails outright without a usable one —
+EL9 devservers ship patatt 0.4.9, b4 0.13 needs ≥ 0.6, and pip is blocked
+there. No subsystem requires patatt signatures. The removed GPG/signing
+support (`bin/gpg-setup`, generated `gpg-agent.conf`) is in git history:
+`git log -- bin/gpg-setup`. `gnupg` stays in the package lists for
+`git verify-tag`.
