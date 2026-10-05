@@ -89,6 +89,16 @@ _G.rust_project_detectors  -- dir -> nil | { root, cmd, cmd_cwd, settings }
 
 First detector to return a table wins; built-in detection is the fallback.
 
+## git sl
+
+`git sl` (`bin/git-sl`) is a Sapling-smartlog look-alike in plain git: your
+commits, the public commits they sit on, `@` for HEAD. Public means
+`origin/HEAD` unless set per repo — in a kernel tree with maintainer remotes:
+
+```sh
+git config sl.public 'origin/* axboe/*'
+```
+
 ## Machine-local, not in this repo
 
 - `~/.config/nvim-local/init.lua` — nvim project detectors

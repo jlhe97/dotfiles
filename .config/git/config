@@ -1,6 +1,5 @@
 [pretty]
       sl = tformat:%C(auto)%h %C(blue)%<(12,trunc)%an %C(green)%<(14,trunc)%cr%C(reset)%C(auto)%d %s
 [alias]
-      sl = "!f() { if [ -n \"$(git rev-list -1 HEAD --branches --not --remotes)\" ]; then git log --graph --boundary --format=sl HEAD --branches --not --remotes \"$@\"; else git log -1 --format=sl \"$@\"; fi; }; f"
       mine = "!f() { u=$(git rev-parse -q --verify @{u} || echo origin/HEAD); git log --graph --boundary --format=sl \"$u..\" \"$@\"; }; f"
       lg = log --graph --format=sl -20

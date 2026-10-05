@@ -1,0 +1,78 @@
+#!/bin/bash
+# git sl: a Sapling-smartlog look-alike in plain git.
+# Shows your commits -- reachable from HEAD or a local branch but from no
+# public ref -- down to the public commits they sit on.
+#
+# Public refs are remote-tracking globs in `git config sl.public`, e.g. for a
+# kernel tree: git config sl.public 'origin/* axboe/*'. Default: origin/HEAD.
+set -uo pipefail
+
+read -r -a patterns <<< "$(git config --get sl.public || echo origin/HEAD)"
+public=()
+for pat in "${patterns[@]}"; do
+    # A trailing "/*" would stop at one level (axboe/for-next/io_uring has
+    # two); for-each-ref matches a bare prefix at any depth.
+    pat="${pat%/\*}"
+    while read -r ref; do
+        [ -n "$ref" ] && public+=("$ref")
+    done < <(git for-each-ref --format='%(refname)' "refs/remotes/$pat")
+done
+
+color=never
+pager="cat"
+if [ -t 1 ]; then
+    color=always
+    # A shell command, not a program: Meta's /etc/gitconfig sets
+    # core.pager to "LESS=FRXK less", which git also runs via sh -c.
+    pager="$(git var GIT_PAGER)"
+    # What git itself exports before starting a pager; without R, less shows
+    # the color codes raw.
+    export LESS="${LESS-FRX}" LV="${LV--c}"
+fi
+
+# %x1f marks where the graph prefix ends, so the rewrite below never touches
+# commit text (a subject may well start with "*" or "/").
+render() {
+    git -c log.graphColors=normal log --graph --abbrev=10 --color="$color" \
+        --date='format-local:%b %d at %H:%M' \
+        --format='%x1f%C(yellow)%h%C(reset)  %C(green)%ad%C(reset)  %C(blue)%al%C(reset)%C(auto)%d%C(reset)%n%x1f%s%n%x1f' \
+        "$@"
+}
+
+if [ -n "$(git rev-list -1 HEAD --branches --not ${public[@]+"${public[@]}"})" ]; then
+    render --boundary HEAD --branches --not ${public[@]+"${public[@]}"} "$@"
+else
+    render -1 HEAD "$@"
+fi | awk -v head="$(git rev-parse --short=10 HEAD)" '
+    {
+        sep = index($0, "\037")
+        if (sep == 0) { print; next }
+        graph = substr($0, 1, sep - 1)
+        text = substr($0, sep + 1)
+        gsub(/\033\[[0-9;]*m/, "", graph)
+        plain = text
+        gsub(/\033\[[0-9;]*m/, "", plain)
+        is_head = (index(plain, head) == 1)
+
+        out = ""
+        n = length(graph)
+        for (i = 1; i <= n; i++) {
+            c = substr(graph, i, 1)
+            prev = (i > 1) ? substr(graph, i - 1, 1) : ""
+            next_c = (i < n) ? substr(graph, i + 1, 1) : ""
+            if (c == "*" || c == "o")
+                out = out (is_head ? "@" : "o")
+            else if (c == "|")
+                out = out ((next_c == "/" || next_c == "\\") ? "├" : "│")
+            else if (c == "/")
+                out = out (prev == "|" ? "╯" : "╱")
+            else if (c == "\\")
+                out = out (prev == "|" ? "╮" : "╲")
+            else if (c == "_")
+                out = out "─"
+            else
+                out = out c
+        }
+        if (text == "") sub(/ +$/, "", out)
+        print out text
+    }' | sh -c "$pager"
