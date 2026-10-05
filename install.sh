@@ -66,6 +66,7 @@ FILES=(
     ".gnupg/gpg.conf"
     ".slconfig"
     ".ripgreprc"
+    ".config/git/config"
 )
 
 # Never symlinked: a $HOME backup captures a symlink, not what it points at.
