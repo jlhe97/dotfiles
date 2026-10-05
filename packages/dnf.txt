@@ -7,10 +7,8 @@ keyutils
 # secret-tool lives in libsecret on Fedora, not a separate -tools package.
 libsecret
 b4
-# GnuPG for b4 patch signing; pinentry on Fedora is a single package that
-# ships the curses prompt (and the GTK one when the deps are present).
+# GnuPG for git verify-tag on signed kernel tags.
 gnupg2
-pinentry
 gh
 fzf
 ripgrep

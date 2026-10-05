@@ -9,14 +9,9 @@
 .mbsyncrc
 .notmuch-config
 .signature
-# Generated per machine: holds the absolute path of this host's pinentry.
-.gnupg/gpg-agent.conf
 
-# GnuPG keyring material must never reach a public repo. gpg.conf is the only
-# file under .gnupg that belongs here; everything else is ignored outright so
-# a stray `gpg --homedir` or a copied keyring cannot be committed by accident.
-.gnupg/*
-!.gnupg/gpg.conf
+# GnuPG keyring material must never reach a public repo.
+.gnupg/
 
 # Site-specific installer settings
 install.local

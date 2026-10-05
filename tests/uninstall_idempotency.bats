@@ -15,7 +15,6 @@ setup() {
   FAKE_DOTFILES="$TEST_HOME/fake_dotfiles"
   mkdir -p \
     "$FAKE_DOTFILES/.neomutt" \
-    "$FAKE_DOTFILES/.gnupg" \
     "$FAKE_DOTFILES/.config/nvim" \
     "$FAKE_DOTFILES/.config/clangd" \
     "$FAKE_DOTFILES/.config/git" \
@@ -26,7 +25,6 @@ setup() {
   touch \
     "$FAKE_DOTFILES/.neomutt/macos.rc" \
     "$FAKE_DOTFILES/.neomutt/linux.rc" \
-    "$FAKE_DOTFILES/.gnupg/gpg.conf" \
     "$FAKE_DOTFILES/.config/git/config"
 
   # --- Source install.sh and run it to lay down symlinks ---
@@ -110,7 +108,6 @@ _uninstall() {
   [ -f "$TEST_HOME/.mbsyncrc" ]
   [ -f "$TEST_HOME/.notmuch-config" ]
   [ -f "$TEST_HOME/.signature" ]
-  [ -f "$TEST_HOME/.gnupg/gpg-agent.conf" ]
 }
 
 @test "uninstall reports the generated files it left behind" {
@@ -128,22 +125,6 @@ _uninstall() {
   _uninstall
 
   [ ! -e "$TEST_HOME/.mbsyncrc" ]
-}
-
-@test "uninstall removes the gpg.conf symlink" {
-  _uninstall
-  [ ! -e "$TEST_HOME/.gnupg/gpg.conf" ]
-}
-
-# The keyring is not ours to delete: uninstall removes the two config symlinks
-# it created and nothing else under ~/.gnupg.
-@test "uninstall leaves the ~/.gnupg directory and its keyring in place" {
-  echo "fake private keyring" > "$TEST_HOME/.gnupg/private-keys-v1.d.stub"
-
-  _uninstall
-
-  [ -d "$TEST_HOME/.gnupg" ]
-  [ -f "$TEST_HOME/.gnupg/private-keys-v1.d.stub" ]
 }
 
 @test "second uninstall exits cleanly" {
@@ -215,6 +196,5 @@ _uninstall() {
   [ -L "$TEST_HOME/.tmux.conf" ]
   [ -L "$TEST_HOME/.vimrc" ]
   [ -L "$TEST_HOME/.zshrc" ]
-  [ -L "$TEST_HOME/.gnupg/gpg.conf" ]
   [ "$(readlink "$TEST_HOME/.tmux.conf")" = "$FAKE_DOTFILES/.tmux.conf" ]
 }

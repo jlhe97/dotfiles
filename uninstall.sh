@@ -28,9 +28,6 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Note the ~/.gnupg entry is an individual file. The directory itself is
-# deliberately NOT a target: it holds the OpenPGP keyring, which this repo did
-# not create and must never delete.
 TARGETS=(
     "$HOME/.tmux.conf"
     "$HOME/.vimrc"
@@ -43,7 +40,6 @@ TARGETS=(
     "$HOME/.ripgreprc"
     "$HOME/.neomutt/macos.rc"
     "$HOME/.neomutt/linux.rc"
-    "$HOME/.gnupg/gpg.conf"
     "$HOME/bin"
     "$HOME/.config/git/config"
 )
@@ -55,7 +51,6 @@ GENERATED=(
     "$HOME/.mbsyncrc"
     "$HOME/.notmuch-config"
     "$HOME/.signature"
-    "$HOME/.gnupg/gpg-agent.conf"
 )
 
 uninstall_via_packagefile() {
@@ -269,10 +264,9 @@ main() {
     echo ""
     echo "To restore backups, check ~/.dotfiles_backup_* directories"
     echo ""
-    echo "Note: the OpenPGP keyring in ~/.gnupg was left untouched, as were the"
-    echo "git settings install.sh wrote (sendemail.*, signing). Undo those with:"
-    echo "  git config --global --unset-all patatt.signingkey"
-    echo "  git config --global --unset-all user.signingKey"
+    echo "Note: the git settings install.sh wrote (sendemail.*, b4) were left in"
+    echo "place. Undo those with:"
+    echo "  git config --global --unset-all b4.send-no-patatt-sign"
     echo "  git config --global --unset-all sendemail.smtpserver"
     echo "  git config --global --remove-section 'credential.smtp://$MAIL_SMTP_HOST:$MAIL_SMTP_PORT'"
     echo ""

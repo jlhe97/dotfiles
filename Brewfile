@@ -5,8 +5,7 @@ brew "isync"
 brew "notmuch"
 brew "sapling"
 brew "b4"
-brew "gnupg"           # patch signing via b4/patatt
-brew "pinentry-mac"    # native passphrase dialog; can cache in the Keychain
+brew "gnupg"           # git verify-tag on signed kernel tags
 brew "gh"              # GitHub CLI; `sl pr submit` shells out to it
 brew "fzf"
 brew "ripgrep"

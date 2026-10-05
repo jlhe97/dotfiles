@@ -23,7 +23,7 @@ RUN ./install.sh --name "Test User" --email "test@example.com"
 # Verify packages installed via packages/apt.txt
 RUN command -v tmux && command -v nvim && command -v neomutt && command -v zsh \
     && command -v mbsync && command -v notmuch \
-    && command -v gpg && command -v pinentry-curses && command -v secret-tool \
+    && command -v gpg && command -v secret-tool \
     && command -v fzf && command -v rg
 
 # Verify dotfile symlinks created
@@ -38,33 +38,19 @@ RUN test -L "$HOME/.tmux.conf" \
     && test -L "$HOME/.slconfig" \
     && test -L "$HOME/.ripgreprc" \
     && test -L "$HOME/.neomutt/linux.rc" \
-    && test -L "$HOME/.gnupg/gpg.conf" \
-    && test -f "$HOME/.gnupg/gpg-agent.conf" \
     && test -L "$HOME/bin"
 
 # A $HOME backup captures a symlink, not what it points at.
-RUN for f in .zshrc.local .neomutt/local.rc .mbsyncrc .notmuch-config .signature \
-             .gnupg/gpg-agent.conf; do \
+RUN for f in .zshrc.local .neomutt/local.rc .mbsyncrc .notmuch-config .signature; do \
         test -f "$HOME/$f" || { echo "missing: $f"; exit 1; }; \
         test ! -L "$HOME/$f" || { echo "still a symlink: $f"; exit 1; }; \
     done \
     && test ! -e "$HOME/dotfiles/.mbsyncrc"
 
-# gpg refuses to use a homedir other users can read.
-RUN test "$(stat -c %a "$HOME/.gnupg")" = "700"
-
-# With no display, the agent must be pointed at the curses pinentry — a
-# graphical one here would hang instead of prompting.
-RUN grep -q 'pinentry-curses' "$HOME/.gnupg/gpg-agent.conf"
-
-# The patch workflow is configured for sending...
+# The patch workflow is configured for sending, unsigned.
 RUN test "$(git config --global --get sendemail.smtpserver)" = "smtp.fastmail.com" \
-    && git config --global --get-all 'credential.smtp://smtp.fastmail.com:587.helper' | grep -q mail-pass
-
-# ...but signing stays off, because this container holds no secret key. That
-# gate is what makes install.sh safe to run on machines that never sign.
-RUN test -z "$(git config --global --get patatt.signingkey || true)" \
-    && test -z "$(git config --global --get user.signingKey || true)"
+    && git config --global --get-all 'credential.smtp://smtp.fastmail.com:587.helper' | grep -q mail-pass \
+    && test "$(git config --global --get b4.send-no-patatt-sign)" = "yes"
 
 # Verify nvim plugins installed
 RUN test -d "$HOME/.local/share/nvim/plugged"
