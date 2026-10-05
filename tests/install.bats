@@ -1306,6 +1306,23 @@ _setup_git_fixture() {
   fi
 }
 
+@test "neomutt_ca_line is empty for an OpenSSL build listing -gnutls" {
+  printf '#!/bin/sh\necho "  -gnutls +hcache +notmuch +openssl"\n' > "$MOCK_BIN/neomutt"
+  chmod +x "$MOCK_BIN/neomutt"
+  CA_BUNDLE_FILE="$TEST_HOME/ca.pem" PATH="$MOCK_BIN:$PATH" run neomutt_ca_line
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "neomutt_ca_line sets the CA file for a GnuTLS build" {
+  touch "$TEST_HOME/ca.pem"
+  printf '#!/bin/sh\necho "  +gnutls +hcache +notmuch -openssl"\n' > "$MOCK_BIN/neomutt"
+  chmod +x "$MOCK_BIN/neomutt"
+  CA_BUNDLE_FILE="$TEST_HOME/ca.pem" PATH="$MOCK_BIN:$PATH" run neomutt_ca_line
+  [ "$status" -eq 0 ]
+  [ "$output" = "set ssl_ca_certificates_file = \"$TEST_HOME/ca.pem\"" ]
+}
+
 # ---------------------------------------------------------------------------
 # configure_mail_bridge
 # ---------------------------------------------------------------------------

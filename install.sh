@@ -591,7 +591,7 @@ resolve_identity() {
 # trust store. Always returns 0.
 neomutt_ca_line() {
     command -v neomutt &>/dev/null || return 0
-    neomutt -v 2>/dev/null | grep -i gnutls >/dev/null || return 0
+    neomutt -v 2>/dev/null | grep -i '+gnutls' >/dev/null || return 0
     local f
     f="$(ca_bundle_file)" || return 0
     echo "set ssl_ca_certificates_file = \"$f\""
