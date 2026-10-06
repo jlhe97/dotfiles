@@ -42,6 +42,8 @@ TARGETS=(
     "$HOME/.neomutt/linux.rc"
     "$HOME/bin"
     "$HOME/.config/git/config"
+    "$HOME/.config/git/kernel.config"
+    "$HOME/.config/git/kernel-commit-template"
 )
 
 # Never removed, only reported: .zshrc.local and .signature are hand-edited.

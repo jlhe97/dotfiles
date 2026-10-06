@@ -25,7 +25,9 @@ setup() {
   touch \
     "$FAKE_DOTFILES/.neomutt/macos.rc" \
     "$FAKE_DOTFILES/.neomutt/linux.rc" \
-    "$FAKE_DOTFILES/.config/git/config"
+    "$FAKE_DOTFILES/.config/git/config" \
+    "$FAKE_DOTFILES/.config/git/kernel.config" \
+    "$FAKE_DOTFILES/.config/git/kernel-commit-template"
 
   # --- Source install.sh and run it to lay down symlinks ---
   local tmpfile
@@ -99,6 +101,8 @@ _uninstall() {
   [ ! -e "$TEST_HOME/.config/nvim" ]
   [ ! -e "$TEST_HOME/.config/clangd" ]
   [ ! -e "$TEST_HOME/.config/git/config" ]
+  [ ! -e "$TEST_HOME/.config/git/kernel.config" ]
+  [ ! -e "$TEST_HOME/.config/git/kernel-commit-template" ]
 }
 
 @test "uninstall leaves the generated local-config files in place" {
