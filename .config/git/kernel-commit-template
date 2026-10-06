@@ -1,0 +1,6 @@
+# <subsystem>: <imperative summary, ~72 chars>
+#
+# Why the change is needed, then what it does. Wrap at 72 columns.
+#
+# Fixes: <12-char sha> ("<subject>")
+# Commit with -s for Signed-off-by.

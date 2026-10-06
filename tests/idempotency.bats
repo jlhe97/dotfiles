@@ -28,7 +28,9 @@ setup() {
   touch \
     "$FAKE_DOTFILES/.neomutt/macos.rc" \
     "$FAKE_DOTFILES/.neomutt/linux.rc" \
-    "$FAKE_DOTFILES/.config/git/config"
+    "$FAKE_DOTFILES/.config/git/config" \
+    "$FAKE_DOTFILES/.config/git/kernel.config" \
+    "$FAKE_DOTFILES/.config/git/kernel-commit-template"
 
   # Source install functions without running main or set -e.
   local tmpfile

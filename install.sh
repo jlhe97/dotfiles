@@ -66,6 +66,8 @@ FILES=(
     ".slconfig"
     ".ripgreprc"
     ".config/git/config"
+    ".config/git/kernel.config"
+    ".config/git/kernel-commit-template"
 )
 
 # Never symlinked: a $HOME backup captures a symlink, not what it points at.

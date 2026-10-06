@@ -73,6 +73,7 @@ link. Missing → link.
 | `idempotency.bats` | `main()` 2–3× with system ops stubbed: no extra backups, stable symlinks, local.rc write-guard, symlink→real-file migration |
 | `uninstall_idempotency.bats` | install → uninstall → reinstall, foreign-symlink and real-file safety |
 | `git-sl.bats` | `bin/git-sl` against a throwaway repo with fake remote refs |
+| `git-config.bats` | `.config/git/config` commit templates: none by default, kernel one for `git.kernel.org` remotes, repo-local wins |
 
 The four install/uninstall files source the script with `set -e` and the `main` call stripped, so
 functions can be tested in isolation:

@@ -35,6 +35,8 @@ RUN test -L "$HOME/.tmux.conf" \
     && test -L "$HOME/.config/nvim" \
     && test -L "$HOME/.config/clangd" \
     && test -L "$HOME/.config/git/config" \
+    && test -L "$HOME/.config/git/kernel.config" \
+    && test -L "$HOME/.config/git/kernel-commit-template" \
     && test -L "$HOME/.slconfig" \
     && test -L "$HOME/.ripgreprc" \
     && test -L "$HOME/.neomutt/linux.rc" \
