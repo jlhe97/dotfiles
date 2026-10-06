@@ -91,9 +91,11 @@ First detector to return a table wins; built-in detection is the fallback.
 
 ## git sl
 
-`git sl` (`bin/git-sl`) is a Sapling-smartlog look-alike in plain git: your
-commits, the public commits they sit on, `@` for HEAD. Public means
-`origin/HEAD` unless set per repo — in a kernel tree with maintainer remotes:
+`git sl` (`bin/git-sl`) is a Sapling-smartlog look-alike in plain git: each
+stack of your commits drawn off the public commit it sits on, plus HEAD (`@`)
+and the upstream tip, with the public history between them elided (`╷`).
+Public means `origin/HEAD` unless set per repo — in a kernel tree with
+maintainer remotes:
 
 ```sh
 git config sl.public 'origin/* axboe/*'
