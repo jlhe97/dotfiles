@@ -1,7 +1,8 @@
 #!/bin/bash
 # git sl: a Sapling-smartlog look-alike in plain git.
-# Shows your commits -- reachable from HEAD or a local branch but from no
-# public ref -- down to the public commits they sit on.
+# Your commits -- reachable from HEAD or a local branch but from no public
+# ref -- each stack drawn off the public commit it sits on. HEAD and the
+# upstream tip are always shown; public history between them is elided.
 #
 # Public refs are remote-tracking globs in `git config sl.public`, e.g. for a
 # kernel tree: git config sl.public 'origin/* axboe/*'. Default: origin/HEAD.
@@ -18,12 +19,16 @@ for pat in "${patterns[@]}"; do
     done < <(git for-each-ref --format='%(refname)' "refs/remotes/$pat")
 done
 
+not_public() {
+    git rev-list "$@" --not ${public[@]+"${public[@]}"}
+}
+
 color=never
 pager="cat"
 if [ -t 1 ]; then
     color=always
-    # A shell command, not a program: Meta's /etc/gitconfig sets
-    # core.pager to "LESS=FRXK less", which git also runs via sh -c.
+    # A shell command, not a program: a system config may set core.pager to
+    # something like "LESS=FRXK less", which git also runs via sh -c.
     pager="$(git var GIT_PAGER)"
     # What git itself exports before starting a pager; without R, less shows
     # the color codes raw.
@@ -32,47 +37,195 @@ fi
 
 # %x1f marks where the graph prefix ends, so the rewrite below never touches
 # commit text (a subject may well start with "*" or "/").
-render() {
-    git -c log.graphColors=normal log --graph --abbrev=10 --color="$color" \
+gitlog() {
+    git -c log.graphColors=normal log --abbrev=10 --color="$color" \
         --date='format-local:%b %d at %H:%M' \
         --format='%x1f%C(yellow)%h%C(reset)  %C(green)%ad%C(reset)  %C(blue)%al%C(reset)%C(auto)%d%C(reset)%n%x1f%s%n%x1f' \
         "$@"
 }
 
-if [ -n "$(git rev-list -1 HEAD --branches --not ${public[@]+"${public[@]}"})" ]; then
-    render --boundary HEAD --branches --not ${public[@]+"${public[@]}"} "$@"
-else
-    render -1 HEAD "$@"
-fi | awk -v head="$(git rev-parse --short=10 HEAD)" '
-    {
-        sep = index($0, "\037")
-        if (sep == 0) { print; next }
-        graph = substr($0, 1, sep - 1)
-        text = substr($0, sep + 1)
-        gsub(/\033\[[0-9;]*m/, "", graph)
-        plain = text
-        gsub(/\033\[[0-9;]*m/, "", plain)
-        is_head = (index(plain, head) == 1)
+# Shared by both awk passes. Works on git's ASCII graph so column positions
+# stay byte offsets; the box-drawing output is multi-byte.
+glyphs_fn='
+function glyphs(g, is_head,   out, n, i, c, prev, nx) {
+    out = ""
+    n = length(g)
+    for (i = 1; i <= n; i++) {
+        c = substr(g, i, 1)
+        prev = (i > 1) ? substr(g, i - 1, 1) : ""
+        nx = (i < n) ? substr(g, i + 1, 1) : ""
+        if (c == "*" || c == "o")      out = out (is_head ? "@" : "o")
+        else if (c == "|")             out = out ((nx == "/" || nx == "\\") ? "├" : "│")
+        else if (c == "/")             out = out (prev == "|" ? "╯" : "╱")
+        else if (c == "\\")            out = out (prev == "|" ? "╮" : "╲")
+        else if (c == "_")             out = out "─"
+        else                           out = out c
+    }
+    return out
+}
+function split_line(line) {
+    sep = index(line, "\037")
+    if (sep == 0) { raw = line; text = ""; return 0 }
+    raw = substr(line, 1, sep - 1)
+    text = substr(line, sep + 1)
+    gsub(/\033\[[0-9;]*m/, "", raw)
+    plain = text
+    gsub(/\033\[[0-9;]*m/, "", plain)
+    return 1
+}
+function row(prefix, t) {
+    if (t == "") sub(/ +$/, "", prefix)
+    print prefix t
+}'
 
-        out = ""
-        n = length(graph)
-        for (i = 1; i <= n; i++) {
-            c = substr(graph, i, 1)
-            prev = (i > 1) ? substr(graph, i - 1, 1) : ""
-            next_c = (i < n) ? substr(graph, i + 1, 1) : ""
-            if (c == "*" || c == "o")
-                out = out (is_head ? "@" : "o")
-            else if (c == "|")
-                out = out ((next_c == "/" || next_c == "\\") ? "├" : "│")
-            else if (c == "/")
-                out = out (prev == "|" ? "╯" : "╱")
-            else if (c == "\\")
-                out = out (prev == "|" ? "╮" : "╲")
-            else if (c == "_")
-                out = out "─"
-            else
-                out = out c
-        }
-        if (text == "") sub(/ +$/, "", out)
-        print out text
-    }' | sh -c "$pager"
+# A public commit on the spine: marker, then rows continued by $2.
+render_node() {
+    gitlog --no-walk "$1" | awk -v marker="$2" -v cont="$3" "$glyphs_fn"'
+        { split_line($0)
+          if (NR == 1) row(marker " ", text)
+          else         row(cont " ", text) }'
+}
+
+# A stack of drafts on base $1: git graph shifted right of the spine column
+# ($2 beside it), joined into the base, whose rows continue with $3. The rest
+# is the revision range: tips, then --not and the public commits under them.
+render_stack() {
+    local base="$1" beside="$2" cont="$3"
+    shift 3
+    gitlog --graph --boundary "$@" |
+        awk -v base="$(git rev-parse --short=10 "$base")" \
+            -v head="$(git rev-parse --short=10 HEAD)" \
+            -v beside="$beside" -v cont="$cont" "$glyphs_fn"'
+        { split_line($0); r[NR] = raw; t[NR] = text; p[NR] = plain }
+        END {
+            for (b = 1; b <= NR; b++) if (index(p[b], base) == 1) break
+            if (b > NR) {
+                for (k = 1; k <= NR; k++)
+                    row(beside " " glyphs(r[k], index(p[k], head) == 1), t[k])
+                exit
+            }
+            # Join every lane still open above the base into it.
+            last = r[b - 1]; n = length(last); maxl = 0
+            for (i = 1; i <= n; i++) if (substr(last, i, 1) ~ /[|*o]/) { lane[i] = 1; maxl = i }
+            join = (beside == "│") ? "├" : "╭"
+            for (i = 1; i <= maxl + 1; i++)
+                join = join ((i - 1 in lane) ? (i - 1 == maxl ? "╯" : "┴") : "─")
+            if (maxl == 0) join = join "╯"
+            # Like sl, put the join on the last subject row when that row is
+            # plain lanes; a row already bending (/ or \) keeps its own.
+            inline = (b >= 3 && r[b - 2] !~ /[\/\\]/ && t[b - 2] != "")
+            stop = inline ? b - 2 : b
+            for (k = 1; k < stop; k++)
+                row(beside " " glyphs(r[k], index(p[k], head) == 1), t[k])
+            if (inline) {
+                pad = ""
+                for (i = length(r[b - 2]) + 2 - (maxl + 2); i > 0; i--) pad = pad " "
+                row(join pad, t[b - 2])
+                print "│"
+            } else
+                print join
+            row(glyphs(r[b], index(p[b], head) == 1), t[b])
+            for (k = b + 1; k <= NR; k++) row(cont " ", t[k])
+        }'
+}
+
+head=$(git rev-parse HEAD)
+main=$(git rev-parse -q --verify refs/remotes/origin/HEAD || true)
+
+if [ ${#public[@]} -eq 0 ]; then
+    # Nothing upstream to anchor on: a plain graph of everything local.
+    gitlog --graph HEAD --branches | awk -v head="$(git rev-parse --short=10 HEAD)" "$glyphs_fn"'
+        { if (split_line($0)) row(glyphs(raw, index(plain, head) == 1), text); else print }' |
+        sh -c "$pager"
+    exit
+fi
+
+# Group draft tips (HEAD and local branches) by the public commit they sit on.
+groups="" bases="" seen=""
+for ref in HEAD $(git for-each-ref --format='%(refname)' refs/heads); do
+    sha=$(git rev-parse "$ref^{commit}")
+    case " $seen " in *" $sha "*) continue ;; esac
+    seen="$seen $sha"
+    [ -n "$(not_public -1 "$sha")" ] || continue
+    edge=$(not_public --boundary "$sha" | sed -n 's/^-//p' | tr '\n' ' ')
+    base=${edge%% *}
+    [ -n "$base" ] || continue
+    groups="$groups$base $sha $edge"$'\n'
+    case " $bases " in *" $base "*) ;; *) bases="$bases $base" ;; esac
+done
+
+nodes="$bases"
+[ -n "$(not_public -1 HEAD)" ] || nodes="$nodes $head"
+[ -n "$main" ] && nodes="$nodes $main"
+# Never empty: bash 3.2 (macOS) rejects "${arr[@]}" of an empty array under -u.
+[ -n "${nodes// /}" ] || nodes="$head"
+# shellcheck disable=SC2086  # word-splitting the hash list is intended
+read -r -a uniq <<< "$(git rev-list --no-walk=sorted $nodes | tr '\n' ' ')"
+
+# Ancestry between spine nodes, computed once: " a>d " means a is an
+# ancestor of d. Each test walks history, which is slow on a kernel tree.
+anc=" "
+for m in "${uniq[@]}"; do
+    for n in "${uniq[@]}"; do
+        [ "$m" != "$n" ] && git merge-base --is-ancestor "$m" "$n" && anc="$anc$m>$n "
+    done
+done
+is_anc() { case "$anc" in *" $1>$2 "*) return 0 ;; esac; return 1; }
+
+# Newest first, by ancestry rather than commit time (which ties, and lies
+# after a rebase): each node goes above every other node it descends from.
+read -r -a ordered <<< "$(
+    for n in "${uniq[@]}"; do
+        k=0
+        for m in "${uniq[@]}"; do is_anc "$m" "$n" && k=$((k + 1)); done
+        echo "$k $(git log -1 --format=%ct "$n") $n"
+    done | sort -k1,1nr -k2,2nr | awk '{ printf "%s ", $3 }'
+)"
+
+# Chains of connected nodes, so an ancestor is drawn under its descendant
+# rather than under whatever sorted next; "-" separates unrelated chains.
+chains=()
+for n in "${ordered[@]}"; do
+    for ((c = 0; c < ${#chains[@]}; c++)); do
+        if is_anc "$n" "${chains[c]##* }"; then
+            chains[c]="${chains[c]} $n"
+            continue 2
+        fi
+    done
+    chains+=("$n")
+done
+read -r -a spine <<< "$(printf '%s - ' "${chains[@]}")"
+
+{
+    beside=" "
+    for ((i = 0; i < ${#spine[@]}; i++)); do
+        node=${spine[i]}
+        [ "$node" = - ] && continue
+        parent=$(git rev-parse -q --verify "$node^" || true)
+        link=none
+        next=${spine[i + 1]:--}
+        if [ "$next" != - ]; then
+            if [ "$parent" = "$next" ]; then link="│"; else link="╷"; fi
+        fi
+        cont="$link"
+        [ "$link" = none ] && { [ -n "$parent" ] && cont="│" || cont=" "; }
+
+        marker=o
+        [ "$node" = "$head" ] && marker=@
+        read -r -a tips <<< "$(printf '%s' "$groups" | awk -v b="$node" '$1 == b { printf "%s ", $2 }')"
+        if [ ${#tips[@]} -gt 0 ]; then
+            # The public commits the stack sits on bound it exactly, and are
+            # far cheaper to exclude than every public ref (~8x on a kernel).
+            read -r -a edge <<< "$(printf '%s' "$groups" | awk -v b="$node" '$1 == b { for (i = 3; i <= NF; i++) printf "%s ", $i }')"
+            render_stack "$node" "$beside" "$cont" "${tips[@]}" --not "${edge[@]}"
+        else
+            render_node "$node" "$marker" "$cont"
+        fi
+        if [ "$link" = none ]; then
+            [ -n "$parent" ] && echo "~"
+            beside=" "
+        else
+            beside="$link"
+        fi
+    done
+} | sh -c "$pager"
