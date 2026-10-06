@@ -8,3 +8,5 @@
       template = /dev/null
 [includeIf "hasconfig:remote.*.url:https://git.kernel.org/**"]
       path = kernel.config
+[fetch]
+     prune = true
