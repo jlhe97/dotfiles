@@ -12,7 +12,6 @@ else
 fi
 
 export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
-export TERM=xterm-256color
 
 # C/C++: make every CMake build emit compile_commands.json so clangd works
 # out of the box (the Cargo-style "just works" experience). For Make projects
