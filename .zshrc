@@ -4,8 +4,7 @@ ZSH_THEME="robbyrussell"
 plugins=(git)
 source $ZSH/oh-my-zsh.sh
 
-# Preferred editor for local and remote sessions. Over ssh the box may be one
-# where the nvim config's 0.8 floor isn't met; stock vim always is.
+# EDITOR
 if [[ -n $SSH_CONNECTION ]]; then
   export EDITOR='vim'
 else
@@ -21,5 +20,11 @@ export TERM=xterm-256color
 export CMAKE_EXPORT_COMPILE_COMMANDS=ON
 export RIPGREP_CONFIG_PATH="$HOME/.ripgreprc"
 
-# Source local overrides (not committed to public dotfiles)
+# LESS text coloring
+case "${LESS-}" in
+  *R*) ;;
+  *) export LESS="-FRX${LESS:+ $LESS}" ;;
+esac
+
+# local overrides
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
