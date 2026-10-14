@@ -84,7 +84,6 @@ jobs:
           test -L "$HOME/.config/git/config"
           test -L "$HOME/.config/git/kernel.config"
           test -L "$HOME/.config/git/kernel-commit-template"
-          test -L "$HOME/.slconfig"
           test -L "$HOME/.ripgreprc"
           test -L "$HOME/.neomutt/macos.rc"
           test -L "$HOME/bin"

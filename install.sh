@@ -63,7 +63,6 @@ FILES=(
     ".neomuttrc"
     ".neomutt/macos.rc"
     ".neomutt/linux.rc"
-    ".slconfig"
     ".ripgreprc"
     ".config/git/config"
     ".config/git/kernel.config"
@@ -110,43 +109,6 @@ install_ghostty() {
             info "ghostty installed successfully"
         else
             warn "ghostty installation failed — skipping (optional dependency)"
-        fi
-    fi
-}
-
-install_sapling() {
-    trap 'warn "${FUNCNAME[0]}: command failed: $BASH_COMMAND"; trap - ERR' ERR
-    if command -v sl &> /dev/null; then
-        info "sapling is already installed"
-    else
-        info "Installing sapling..."
-        if command -v apt &> /dev/null || command -v dnf &> /dev/null; then
-            local tmp_tar tarball_url
-            tmp_tar="$(mktemp /tmp/sapling_XXXXXX.tar.xz)"
-            tarball_url="$(curl -fsSL https://api.github.com/repos/facebook/sapling/releases/latest | grep -o 'https://[^"]*linux-x64\.tar\.xz' | head -1)"
-            curl -fsSL "$tarball_url" -o "$tmp_tar"
-            sudo mkdir -p /usr/local/lib/sapling
-            sudo tar -xf "$tmp_tar" -C /usr/local/lib/sapling
-            sudo ln -sf /usr/local/lib/sapling/sl /usr/local/bin/sl
-            rm -f "$tmp_tar"
-        elif command -v pacman &> /dev/null; then
-            if command -v yay &> /dev/null; then
-                yay -S --noconfirm sapling-scm-bin
-            elif command -v paru &> /dev/null; then
-                paru -S --noconfirm sapling-scm-bin
-            else
-                warn "Could not install sapling — install an AUR helper (yay/paru) then run: yay -S sapling-scm-bin"
-                return 0
-            fi
-        else
-            warn "Could not install sapling. Install manually from https://sapling-scm.com/docs/introduction/installation"
-            return 0
-        fi
-
-        if command -v sl &> /dev/null; then
-            info "sapling installed successfully"
-        else
-            warn "sapling installation failed — install manually from https://sapling-scm.com/docs/introduction/installation"
         fi
     fi
 }
@@ -221,21 +183,6 @@ configure_git() {
     git config --global user.name "$1"
     git config --global user.email "$2"
     info "git identity set to: $1 <$2>"
-}
-
-configure_sapling() {
-    if ! command -v sl &> /dev/null; then
-        return 0
-    fi
-
-    local current
-    current="$(sl config ui.username 2>/dev/null || true)"
-    if [ -n "$current" ]; then
-        info "sapling identity already set: $current"
-    else
-        sl config --user ui.username "$1 <$2>"
-        info "sapling identity set to: $1 <$2>"
-    fi
 }
 
 # Every step is skip-and-warn: a devserver with centrally managed git config
@@ -749,8 +696,6 @@ main() {
         # After the package file (may top up an old nvim), before plugin install.
         install_neovim || warn "neovim install incomplete — the nvim config needs 0.8+"
         echo ""
-        install_sapling || true
-        echo ""
         install_ghostty || true
         echo ""
     fi
@@ -764,7 +709,6 @@ main() {
     echo ""
 
     configure_git "$USER_NAME" "$USER_EMAIL" || true
-    configure_sapling "$USER_NAME" "$USER_EMAIL" || true
     configure_patch_workflow "$USER_EMAIL" || warn "patch workflow config incomplete — check output above"
     install_ohmyzsh || warn "oh-my-zsh installation failed — continuing without it"
     set_default_shell || warn "could not set default shell — run: chsh -s \$(which zsh)"
@@ -927,7 +871,6 @@ main() {
     echo "  - vim      (~/.vimrc, ~/.vimrc.plug)"
     echo "  - neovim   (~/.config/nvim/)"
     echo "  - neomutt  (~/.neomuttrc, ~/.neomutt/)"
-    echo "  - sapling  (vcs — sl)"
     echo "  - ghostty  (terminal emulator)"
     echo "  - scripts  (~/bin/)"
     echo ""
