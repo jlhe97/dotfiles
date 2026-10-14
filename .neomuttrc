@@ -17,8 +17,7 @@ set smtp_pass = "`$HOME/bin/mail-pass`"
 set smtp_authenticators = "plain"
 set ssl_starttls = yes
 set ssl_force_tls = yes
-
-set editor = "nvim"
+set editor = "$HOME/bin/dotfiles-editor"
 
 # --- notmuch: local mail store with cross-folder threading ---
 set virtual_spool_file = yes
