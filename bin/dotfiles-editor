@@ -1,0 +1,8 @@
+#!/bin/sh
+for editor in nvim vim vi; do
+    if command -v "$editor" >/dev/null 2>&1; then
+        exec "$editor" "$@"
+    fi
+done
+printf '%s\n' 'No supported editor found' >&2
+exit 127

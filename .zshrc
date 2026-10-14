@@ -6,13 +6,9 @@ source $ZSH/oh-my-zsh.sh
 PROMPT='%F{yellow}%n@%m%f %F{cyan}%c%f $(git_prompt_info)'
 
 # EDITOR
-if [[ -n $SSH_CONNECTION ]]; then
-  export EDITOR='vim'
-else
-  export EDITOR='nvim'
-fi
-
 export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
+export EDITOR="$HOME/bin/dotfiles-editor"
+export VISUAL="$EDITOR"
 
 # C/C++: make every CMake build emit compile_commands.json so clangd works
 # out of the box (the Cargo-style "just works" experience). For Make projects

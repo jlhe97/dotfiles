@@ -183,6 +183,8 @@ configure_git() {
     git config --global user.name "$1"
     git config --global user.email "$2"
     info "git identity set to: $1 <$2>"
+
+    git config --global core.editor "$HOME/bin/dotfiles-editor"
 }
 
 # Every step is skip-and-warn: a devserver with centrally managed git config
