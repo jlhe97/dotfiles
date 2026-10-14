@@ -19,7 +19,7 @@ setup() {
     "$FAKE_DOTFILES/.config/clangd" \
     "$FAKE_DOTFILES/.config/git" \
     "$FAKE_DOTFILES/bin"
-  for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .slconfig .ripgreprc; do
+  for f in .tmux.conf .vimrc .vimrc.plug .zshrc .neomuttrc .ripgreprc; do
     touch "$FAKE_DOTFILES/$f"
   done
   touch \
@@ -43,9 +43,7 @@ setup() {
   install_via_brewfile()      { :; }
   install_via_packagefile()   { :; }
   install_ghostty()           { :; }
-  install_sapling()           { :; }
   configure_git()             { :; }
-  configure_sapling()         { :; }
   configure_patch_workflow()  { :; }
   install_ohmyzsh()           { :; }
   set_default_shell()         { :; }
@@ -90,7 +88,6 @@ _uninstall() {
   [ ! -e "$TEST_HOME/.vimrc.plug" ]
   [ ! -e "$TEST_HOME/.zshrc" ]
   [ ! -e "$TEST_HOME/.neomuttrc" ]
-  [ ! -e "$TEST_HOME/.slconfig" ]
   [ ! -e "$TEST_HOME/.neomutt/macos.rc" ]
   [ ! -e "$TEST_HOME/.neomutt/linux.rc" ]
   [ ! -e "$TEST_HOME/bin" ]
@@ -184,9 +181,7 @@ _uninstall() {
   install_via_brewfile()      { :; }
   install_via_packagefile()   { :; }
   install_ghostty()           { :; }
-  install_sapling()           { :; }
   configure_git()             { :; }
-  configure_sapling()         { :; }
   configure_patch_workflow()  { :; }
   install_ohmyzsh()           { :; }
   set_default_shell()         { :; }

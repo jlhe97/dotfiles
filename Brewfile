@@ -3,7 +3,6 @@ brew "neovim"
 brew "neomutt"
 brew "isync"
 brew "notmuch"
-brew "sapling"
 brew "b4"
 brew "gnupg"           # git verify-tag on signed kernel tags
 brew "gh"              # GitHub CLI; `sl pr submit` shells out to it

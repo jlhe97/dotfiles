@@ -36,7 +36,6 @@ TARGETS=(
     "$HOME/.config/clangd"
     "$HOME/.zshrc"
     "$HOME/.neomuttrc"
-    "$HOME/.slconfig"
     "$HOME/.ripgreprc"
     "$HOME/.neomutt/macos.rc"
     "$HOME/.neomutt/linux.rc"

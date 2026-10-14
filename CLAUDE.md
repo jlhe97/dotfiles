@@ -41,7 +41,7 @@ leftover symlink to a real file on upgrade; without it every `>` in the
 generation block would write through the link into `$DOTFILES_DIR`.
 
 `main()`: resolve identity (`--name`/`--email` → existing `~/.neomutt/local.rc`
-→ prompt) → packages (Brewfile on macOS, package list on Linux) → git/sapling
+→ prompt) → packages (Brewfile on macOS, package list on Linux) → git
 identity → patch workflow → oh-my-zsh → generate the `GENERATED` files
 → `backup_and_link()` over `FILES`/`DIRS` → vim/nvim plugins.
 
@@ -111,7 +111,7 @@ file or a pre-migration symlink). `main()` then writes into `$HOME`:
   is prose meant to be hand-edited. `.neomuttrc` sets `sig_dashes`, so the
   `-- ` delimiter is not stored in the file.
 
-`configure_git()` / `configure_sapling()` set `user.name`/`user.email` globally,
+`configure_git()` set `user.name`/`user.email` globally,
 both idempotent. `~/.zshrc.local` is created empty if missing.
 
 ## Mail

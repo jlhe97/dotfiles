@@ -242,52 +242,6 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# configure_sapling
-# ---------------------------------------------------------------------------
-
-@test "configure_sapling returns 0 silently when sl is not on PATH" {
-  local orig_path="$PATH"
-  export PATH="$MOCK_BIN"
-
-  run configure_sapling "Test User" "user@example.com"
-
-  export PATH="$orig_path"
-  [ "$status" -eq 0 ]
-  [ -z "$output" ]
-}
-
-@test "configure_sapling sets identity when sl exists but none is configured" {
-  # Fake sl: empty output for 'config ui.username' → no identity set
-  cat > "$MOCK_BIN/sl" <<'EOF'
-#!/bin/bash
-exit 0
-EOF
-  chmod +x "$MOCK_BIN/sl"
-  export PATH="$MOCK_BIN:$PATH"
-
-  run configure_sapling "Test User" "user@example.com"
-
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"sapling identity set to"* ]]
-  [[ "$output" == *"Test User"* ]]
-}
-
-@test "configure_sapling skips when identity is already configured" {
-  # Fake sl: non-empty output for 'config ui.username' → identity exists
-  cat > "$MOCK_BIN/sl" <<'EOF'
-#!/bin/bash
-echo "Existing User <existing@example.com>"
-EOF
-  chmod +x "$MOCK_BIN/sl"
-  export PATH="$MOCK_BIN:$PATH"
-
-  run configure_sapling "Test User" "user@example.com"
-
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"already set"* ]]
-}
-
-# ---------------------------------------------------------------------------
 # install_vim_plugins / install_nvim_plugins
 # ---------------------------------------------------------------------------
 
@@ -704,7 +658,7 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# install_ghostty / install_sapling — already-installed fast paths
+# install_ghostty — already-installed fast paths
 # ---------------------------------------------------------------------------
 
 @test "install_ghostty skips when ghostty is already on PATH" {
@@ -717,22 +671,6 @@ EOF
   export PATH="$MOCK_BIN:$PATH"
 
   run install_ghostty
-
-  export PATH="$orig_path"
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"already installed"* ]]
-}
-
-@test "install_sapling skips when sl is already on PATH" {
-  cat > "$MOCK_BIN/sl" << 'EOF'
-#!/bin/bash
-exit 0
-EOF
-  chmod +x "$MOCK_BIN/sl"
-  local orig_path="$PATH"
-  export PATH="$MOCK_BIN:$PATH"
-
-  run install_sapling
 
   export PATH="$orig_path"
   [ "$status" -eq 0 ]
