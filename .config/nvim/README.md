@@ -8,19 +8,27 @@ bootstrap on first launch, or `nvim +PlugInstall +qall`.
 
 ## Keys
 
-Leader is `\`.
-
 | | |
 |---|---|
-| `gd` `gr` `gi` | definition, references, implementation |
-| `K` | hover docs |
-| `<leader>rn` `<leader>ca` | rename, code actions |
-| `<leader>f` | format — visual mode formats the selection only |
+| `Space p` / `Space ff` | find files with FZF |
+| `Space fg` / `Space sg` / `Space /` | Git files / grep / grep |
+| `Space fb` / `Space fr` | buffers / recent files |
+| `Space e` / `Space fe` | NERDTree toggle / reveal current file |
+| `Space bn` / `Space bp` / `Space bq` | next / previous / close buffer |
+| arrows or `C-h/j/k/l` | move between windows |
+| `gd` `gD` `gr` `gI` `gy` | definition, declaration, references, implementation, type |
+| `K` / `gK` | hover docs / signature help |
+| `Space cr` / `Space ca` | rename / code actions |
+| `Space cl` | attached LSP clients and roots |
+| `[d` / `]d` / `Space sd` / `Space xx` | previous / next / list diagnostics |
+| `Space f` | format — visual mode formats the selection only |
 | `Tab` / `S-Tab` / `CR` | completion: next, previous, accept |
 | `C-Space` | trigger completion |
-| `C-n` / `<leader>n` | NERDTree toggle / reveal current file |
-| `C-p` / `<leader>fg` / `<leader>fb` | fzf: files, grep, buffers |
-| `]q` `[q` `<leader>qf` | quickfix next, previous, open |
+| `Space n` / `Space uh` | message/notification history |
+| `]q` `[q` `Space qf` | quickfix next, previous, open |
+
+The old `C-p` file picker, `C-n` tree toggle, `gi` implementation, and
+`Space rn` rename bindings remain available as compatibility aliases.
 
 ## How the server finds your project
 
