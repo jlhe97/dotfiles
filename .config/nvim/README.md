@@ -1,7 +1,7 @@
 # Neovim config
 
 C/C++ and Rust with the built-in LSP client (no lspconfig), tuned for Linux
-kernel trees. Requires Neovim 0.9.4+.
+kernel trees. Requires Neovim 0.11+.
 
 Symlinked to `~/.config/nvim` by `install.sh` — don't copy the files. Plugins
 bootstrap on first launch, or `nvim +PlugInstall +qall`.
@@ -22,6 +22,11 @@ Which-key.
 | `Space sc` / `Space sC` | command history / available commands |
 | `Space e` / `Space fe` | NERDTree toggle / reveal current file |
 | `Space bn` / `Space bp` / `Space bq` | next / previous / close buffer |
+| `[h` / `]h` / `[H` / `]H` | previous / next / first / last Git hunk |
+| `Space ghs` / `Space ghr` / `Space ghp` | stage / reset / preview Git hunk |
+| `Space ghb` / `Space ghB` | blame current line / buffer |
+| `Space ghS` / `Space ghd` | stage buffer / diff buffer |
+| `ih` | Git hunk text object in visual/operator mode |
 | arrows or `C-h/j/k/l` | move between windows |
 | `gd` `gD` `gr` `gI` `gy` | definition, declaration, references, implementation, type |
 | `K` / `gK` | hover docs / signature help |

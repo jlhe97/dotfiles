@@ -1,12 +1,9 @@
--- Minimal Neovim config for C/C++ development with LSP
 
--- Without this guard an older nvim dies partway through with a traceback that
--- says nothing about the real cause. Which-key 3 requires Neovim 0.9.4+.
-if vim.fn.has('nvim-0.9.4') ~= 1 then
+if vim.fn.has('nvim-0.11') ~= 1 then
   local ok, v = pcall(vim.version)
   local found = (ok and type(v) == 'table')
     and string.format('%d.%d.%d', v.major, v.minor, v.patch) or 'an older release'
-  error(('this config requires Neovim 0.9.4 or newer (found %s)'):format(found), 0)
+  error(('this config requires Neovim 0.11 or newer (found %s)'):format(found), 0)
 end
 
 vim.g.mapleader = ' '
@@ -26,6 +23,7 @@ vim.call('plug#', 'junegunn/fzf')
 vim.call('plug#', 'junegunn/fzf.vim')
 vim.call('plug#', 'Mofiqul/vscode.nvim')
 vim.call('plug#', 'RRethy/vim-illuminate')
+vim.call('plug#', 'lewis6991/gitsigns.nvim')
 vim.call('plug#', 'mg979/vim-visual-multi')
 vim.call('plug#', 'MunifTanjim/nui.nvim')   -- required by noice
 vim.call('plug#', 'folke/noice.nvim')       -- floating : cmdline (see below)
@@ -49,6 +47,8 @@ pcall(function()
     { '<leader>b', group = 'buffers' },
     { '<leader>c', group = 'code / LSP' },
     { '<leader>f', group = 'file / find' },
+    { '<leader>g', group = 'git' },
+    { '<leader>gh', group = 'hunks' },
     { '<leader>q', group = 'quickfix' },
     { '<leader>s', group = 'search' },
     { '<leader>u', group = 'UI' },
@@ -66,11 +66,8 @@ vim.opt.autoindent = true
 vim.opt.signcolumn = 'yes'
 vim.opt.updatetime = 300
 
--- Color scheme: match VSCode's default dark theme (Dark+/Dark Modern)
 vim.opt.termguicolors = true
 vim.o.background = 'dark'
--- vim.cmd('...') not vim.cmd.colorscheme(...): Lua evaluates the argument
--- first, so the index would happen outside the pcall and take the config down.
 pcall(vim.cmd, 'colorscheme vscode')
 
 -- Match an existing file's indentation when no .editorconfig speaks for it
@@ -96,6 +93,56 @@ pcall(function()
   require('illuminate').configure({
     providers = { 'lsp', 'treesitter', 'regex' },
     delay = 100,
+  })
+end)
+
+pcall(function()
+  require('gitsigns').setup({
+    signs = {
+      add = { text = '│' },
+      change = { text = '│' },
+      delete = { text = '_' },
+      topdelete = { text = '‾' },
+      changedelete = { text = '~' },
+      untracked = { text = '┆' },
+    },
+    on_attach = function(bufnr)
+      local gs = package.loaded.gitsigns
+      local function git_map(mode, lhs, rhs, desc)
+        vim.keymap.set(mode, lhs, rhs, {
+          buffer = bufnr,
+          silent = true,
+          desc = desc,
+        })
+      end
+
+      git_map('n', ']h', function()
+        if vim.wo.diff then
+          vim.cmd.normal({ ']c', bang = true })
+        else
+          gs.nav_hunk('next')
+        end
+      end, 'Next Git hunk')
+      git_map('n', '[h', function()
+        if vim.wo.diff then
+          vim.cmd.normal({ '[c', bang = true })
+        else
+          gs.nav_hunk('prev')
+        end
+      end, 'Previous Git hunk')
+      git_map('n', ']H', function() gs.nav_hunk('last') end, 'Last Git hunk')
+      git_map('n', '[H', function() gs.nav_hunk('first') end, 'First Git hunk')
+      git_map({ 'n', 'x' }, '<leader>ghs', ':Gitsigns stage_hunk<CR>', 'Stage Git hunk')
+      git_map({ 'n', 'x' }, '<leader>ghr', ':Gitsigns reset_hunk<CR>', 'Reset Git hunk')
+      git_map('n', '<leader>ghS', gs.stage_buffer, 'Stage Git buffer')
+      git_map('n', '<leader>ghp', gs.preview_hunk_inline, 'Preview Git hunk')
+      git_map('n', '<leader>ghb', function()
+        gs.blame_line({ full = true })
+      end, 'Blame current line')
+      git_map('n', '<leader>ghB', gs.blame, 'Blame current buffer')
+      git_map('n', '<leader>ghd', gs.diffthis, 'Diff current buffer')
+      git_map({ 'o', 'x' }, 'ih', ':<C-U>Gitsigns select_hunk<CR>', 'Select Git hunk')
+    end,
   })
 end)
 
