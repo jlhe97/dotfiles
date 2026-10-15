@@ -687,7 +687,7 @@ main() {
 
     resolve_identity
 
-    mkdir -p "$HOME/.cache/neomutt"
+    mkdir -p "$HOME/.cache/neomutt-kernel"
 
     if [[ "$(uname)" == "Darwin" ]]; then
         install_via_brewfile || warn "Brewfile install incomplete — some packages may be missing"
@@ -729,7 +729,8 @@ main() {
     if [ -f "$local_rc" ] && \
        grep -qF "set real_name = \"${USER_NAME}\"" "$local_rc" && \
        grep -qF "set imap_user = \"${USER_EMAIL}\"" "$local_rc" && \
-       grep -qF "set nm_default_url = " "$local_rc"; then
+       grep -qxF "set my_maildir = \"$MAIL_DIR\"" "$local_rc" && \
+       grep -qxF "set nm_default_url = \"notmuch://$MAIL_DIR\"" "$local_rc"; then
         info "Identity in .neomutt/local.rc is already up to date"
     else
         local ca_line
@@ -747,7 +748,7 @@ main() {
             echo "set nm_default_url = \"notmuch://$MAIL_DIR\""
             if [ -n "$ca_line" ]; then echo "$ca_line"; fi
             if command -v neomutt &>/dev/null && \
-               neomutt -Q header_cache_backend &>/dev/null; then
+               neomutt -n -F /dev/null -Q header_cache_backend &>/dev/null; then
                 local hcb
                 hcb="$(neomutt -v 2>/dev/null | grep -oE '\+HAVE_(LMDB|GDBM|TOKYOCABINET|KYOTOCABINET|BDB)' | head -1 || true)"
                 case "$hcb" in
@@ -770,7 +771,8 @@ main() {
         info "Written ~/.signature for $USER_NAME"
     fi
 
-    # Password comes from bin/mail-pass at sync time; nothing secret is here.
+    # mbsync cannot create a mailbox when neither side exists yet.
+    mkdir -p "$MAIL_DIR/Sent/cur" "$MAIL_DIR/Sent/new" "$MAIL_DIR/Sent/tmp"
     local mbsyncrc="$HOME/.mbsyncrc"
     {
         echo "IMAPAccount $MAIL_PROVIDER"
@@ -799,13 +801,22 @@ main() {
         echo "Inbox $MAIL_DIR/INBOX"
         echo "Subfolders Verbatim"
         echo ""
-        echo "Channel $MAIL_PROVIDER"
-        echo "Far :$MAIL_PROVIDER-remote:"
-        echo "Near :$MAIL_PROVIDER-local:"
-        echo "Patterns *"
+        echo "Channel $MAIL_PROVIDER-inbox"
+        echo "Far \":$MAIL_PROVIDER-remote:$MAIL_FOLDER\""
+        echo "Near :$MAIL_PROVIDER-local:INBOX"
+        echo "Create Near"
+        echo "Expunge Both"
+        echo "SyncState *"
+        echo ""
+        echo "Channel $MAIL_PROVIDER-sent"
+        echo "Far \":$MAIL_PROVIDER-remote:$MAIL_SENT_FOLDER\""
+        echo "Near :$MAIL_PROVIDER-local:Sent"
         echo "Create Both"
         echo "Expunge Both"
         echo "SyncState *"
+        echo ""
+        echo "Group $MAIL_PROVIDER"
+        echo "Channels $MAIL_PROVIDER-inbox $MAIL_PROVIDER-sent"
     } > "$mbsyncrc"
     info "Written ~/.mbsyncrc for $USER_EMAIL"
 

@@ -103,8 +103,8 @@ skipped; `install_via_packagefile()` picks by available package manager.
 file or a pre-migration symlink). `main()` then writes into `$HOME`:
 
 - `.neomutt/local.rc` — `imap_user`/`from`/`real_name`/`smtp_url`/`nm_default_url`.
-  Its write-guard needs all of `real_name`, `imap_user`, `nm_default_url` present
-  before it skips a rewrite.
+  Its write-guard checks the identity and exact `my_maildir`/`nm_default_url`
+  paths before it skips a rewrite.
 - `.mbsyncrc` — IMAP→maildir; password via `PassCmd "$HOME/bin/mail-pass"`.
 - `.notmuch-config` — database path + identity.
 - `.signature` — written **only when missing or empty**, never regenerated: it
@@ -116,7 +116,8 @@ both idempotent. `~/.zshrc.local` is created empty if missing.
 
 ## Mail
 
-Local only: `mbsync` pulls into `$MAIL_DIR` (`~/Mail/<provider>`), `notmuch`
+Kernel-only, local: `mbsync` maps server `Kernel` → local `INBOX` and
+`Kernel/Sent` → local `Sent` in `$MAIL_DIR` (`~/Mail/<provider>-kernel`), `notmuch`
 indexes for cross-folder threading, neomutt reads the notmuch database via
 `virtual-mailboxes`. No live IMAP, no GPG in the mail path.
 
@@ -132,8 +133,9 @@ The app password lives in the OS secret store, read only by `bin/mail-pass`:
 | Linux | first non-empty of `secret-tool` (libsecret), `systemd-creds` (host-key encrypted — the only one surviving a reboot), `keyctl` (kernel keyring, lost on reboot) |
 
 `pass` was dropped: it drags gpg-agent and a passphrase prompt into the mail
-path. `mail-pass --store` / `--check`. `bin/mail-sync` = `mbsync -a && notmuch
-new`; `bin/mutt` syncs, opens neomutt, syncs again. `bin/mail-timer` installs a
+path. `mail-pass --store` / `--check`. `bin/mail-sync` syncs only the provider's
+kernel group, then runs `notmuch new` even after a partial sync failure;
+`bin/mutt` syncs, opens neomutt, syncs again. `bin/mail-timer` installs a
 periodic-sync timer (launchd or systemd `--user`), once per machine.
 
 When the provider is unreachable directly, `install.sh` detects it and writes

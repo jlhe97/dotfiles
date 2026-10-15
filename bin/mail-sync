@@ -1,6 +1,4 @@
 #!/bin/bash
-# Pull mail into the local maildir and (re)index it with notmuch.
-# Run periodically (launchd/systemd timer) or on neomutt launch (see bin/mutt).
 set -euo pipefail
 
 # shellcheck source=/dev/null
@@ -15,13 +13,24 @@ if ! command -v notmuch &>/dev/null; then
     exit 1
 fi
 
+# Refuse stale generated configs before syncing or indexing personal mail.
+if ! grep -qxF "Group $MAIL_PROVIDER" "$HOME/.mbsyncrc" || \
+   ! grep -qxF "Channels $MAIL_PROVIDER-inbox $MAIL_PROVIDER-sent" "$HOME/.mbsyncrc" || \
+   ! grep -qxF "Path $MAIL_DIR/" "$HOME/.mbsyncrc"; then
+    echo "mail-sync: outdated sync config; re-run the dotfiles installer before syncing" >&2
+    exit 1
+fi
+if [ "$(notmuch config get database.path)" != "$MAIL_DIR" ]; then
+    echo "mail-sync: notmuch must index $MAIL_DIR; re-run the dotfiles installer" >&2
+    exit 1
+fi
+
 mkdir -p "$MAIL_DIR"
 
 echo "Syncing $MAIL_PROVIDER (mbsync)..."
-# A non-fatal mbsync error must not skip indexing: mail already fetched still
-# has to reach the notmuch database.
+# Index partial downloads even when mbsync fails.
 mbsync_status=0
-mbsync -a || mbsync_status=$?
+mbsync "$MAIL_PROVIDER" || mbsync_status=$?
 if [ "$mbsync_status" -ne 0 ]; then
     echo "mail-sync: mbsync exited $mbsync_status (continuing to index what was fetched)" >&2
 fi

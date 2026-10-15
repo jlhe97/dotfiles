@@ -23,8 +23,8 @@ mail-timer                 # optional: sync every 5 min
 ```
 
 `install.sh` is idempotent: it skips installed packages, leaves correct symlinks
-alone, and rewrites `~/.neomutt/local.rc` only when the identity changes. The
-clone path is recorded in the symlinks — if you move the repo, re-run it.
+alone, and rewrites `~/.neomutt/local.rc` when the identity or mail path changes.
+The clone path is recorded in the symlinks — if you move the repo, re-run it.
 
 ```sh
 ./uninstall.sh --skip-packages   # remove symlinks, no package prompt
@@ -34,19 +34,31 @@ Uninstall never deletes the generated files in `$HOME`; it lists them instead.
 
 ## Mail
 
-Mail is local: `mbsync` pulls into `~/Mail/<provider>`, `notmuch` indexes it,
-neomutt reads the notmuch database. No live IMAP.
+Mail is kernel-only and local: `mbsync` maps the server's `Kernel` folder to
+`~/Mail/<provider>-kernel/INBOX` and `Kernel/Sent` to the local `Sent` folder.
+It never syncs personal Inbox, Sent, or other folders. `notmuch` indexes only
+this separate store, and NeoMutt reads that database. No live IMAP.
+
+Create `Kernel` on the server and route netdev/io-uring mail there before the
+first sync. The sync creates `Kernel/Sent` for sent copies. Existing mail in
+`~/Mail/<provider>`, its index, and the old `~/.cache/neomutt` are left untouched;
+switching configurations does not remove those personal-mail copies.
+
+Re-run `./install.sh` on existing machines to migrate their generated configs.
+`mail-sync` refuses legacy sync configs or an index pointing at the old store.
 
 | Command | |
 |---|---|
 | `mutt` | sync, open neomutt, sync again on exit |
-| `mail-sync` | `mbsync -a && notmuch new` |
+| `mail-sync` | sync the provider's kernel channels, then index fetched mail |
 | `mail-pass --store` | store or rotate the app password |
 | `mail-pass --check` | is a secret present, and in which backend |
 | `mail-timer` | install the periodic-sync timer (launchd / systemd `--user`) |
 
 The provider lives in `bin/mail-provider` (Fastmail by default); override any
-value in `~/.config/dotfiles/mail.conf`. If the provider is unreachable directly,
+value in `~/.config/dotfiles/mail.conf`, including `MAIL_FOLDER` (default `Kernel`),
+`MAIL_SENT_FOLDER` (default `$MAIL_FOLDER/Sent`), and `MAIL_DIR`. Re-run the installer
+after changing those values. If the provider is unreachable directly,
 `install.sh` detects it and puts an stunnel bridge on loopback.
 
 ## Patches
