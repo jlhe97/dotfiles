@@ -9,6 +9,9 @@ if vim.fn.has('nvim-0.8') ~= 1 then
   error(('this config requires Neovim 0.8 or newer (found %s)'):format(found), 0)
 end
 
+vim.g.mapleader = ' '
+vim.g.maplocalleader = ' '
+
 -- vim-plug is bootstrapped by install.sh; nothing to do here.
 
 vim.call('plug#begin', vim.fn.stdpath('data') .. '/plugged')
@@ -81,13 +84,51 @@ end)
 vim.g.NERDTreeShowHidden = 1          -- show dotfiles
 vim.g.NERDTreeMinimalUI = 1           -- hide the help hint / bookmarks header
 vim.g.NERDTreeQuitOnOpen = 0          -- keep the tree open after opening a file
-vim.keymap.set('n', '<C-n>', ':NERDTreeToggle<CR>', { silent = true })   -- open/close
-vim.keymap.set('n', '<leader>n', ':NERDTreeFind<CR>', { silent = true }) -- reveal current file
+vim.keymap.set('n', '<C-n>', '<cmd>NERDTreeToggle<CR>',
+  { silent = true, desc = 'Explorer toggle' })
+vim.keymap.set('n', '<leader>e', '<cmd>NERDTreeToggle<CR>',
+  { silent = true, desc = 'Explorer toggle' })
+vim.keymap.set('n', '<leader>fe', '<cmd>NERDTreeFind<CR>',
+  { silent = true, desc = 'Explorer reveal current file' })
 
--- fzf fuzzy finder (needs system fzf + ripgrep, installed via packages)
-vim.keymap.set('n', '<C-p>', ':Files<CR>', { silent = true })        -- fuzzy file names
-vim.keymap.set('n', '<leader>fg', ':Rg<CR>', { silent = true })      -- grep file contents
-vim.keymap.set('n', '<leader>fb', ':Buffers<CR>', { silent = true }) -- open buffers
+-- fzf replaces mnvim's Myles picker in the regular profile. It needs the
+-- system fzf and ripgrep packages installed by install.sh.
+vim.keymap.set('n', '<C-p>', '<cmd>Files<CR>',
+  { silent = true, desc = 'Find files (FZF)' })
+vim.keymap.set('n', '<leader>p', '<cmd>Files<CR>',
+  { silent = true, desc = 'Find files (FZF)' })
+vim.keymap.set('n', '<leader>ff', '<cmd>Files<CR>',
+  { silent = true, desc = 'Find files (FZF)' })
+vim.keymap.set('n', '<leader>fg', '<cmd>GFiles<CR>',
+  { silent = true, desc = 'Find Git files (FZF)' })
+vim.keymap.set('n', '<leader>sg', '<cmd>Rg<CR>',
+  { silent = true, desc = 'Grep project (FZF)' })
+vim.keymap.set('n', '<leader>/', '<cmd>Rg<CR>',
+  { silent = true, desc = 'Grep project (FZF)' })
+vim.keymap.set('n', '<leader>fb', '<cmd>Buffers<CR>',
+  { silent = true, desc = 'Find buffers (FZF)' })
+vim.keymap.set('n', '<leader>fr', '<cmd>History<CR>',
+  { silent = true, desc = 'Recent files (FZF)' })
+
+vim.keymap.set('n', '<leader>bn', '<cmd>bnext<CR>',
+  { silent = true, desc = 'Next buffer' })
+vim.keymap.set('n', '<leader>bp', '<cmd>bprevious<CR>',
+  { silent = true, desc = 'Previous buffer' })
+vim.keymap.set('n', '<leader>bq', '<cmd>bdelete<CR>',
+  { silent = true, desc = 'Close current buffer' })
+vim.keymap.set('n', '<Left>', '<C-w>h', { desc = 'Go to left window' })
+vim.keymap.set('n', '<Down>', '<C-w>j', { desc = 'Go to lower window' })
+vim.keymap.set('n', '<Up>', '<C-w>k', { desc = 'Go to upper window' })
+vim.keymap.set('n', '<Right>', '<C-w>l', { desc = 'Go to right window' })
+vim.keymap.set('n', '<C-h>', '<C-w>h', { desc = 'Go to left window' })
+vim.keymap.set('n', '<C-j>', '<C-w>j', { desc = 'Go to lower window' })
+vim.keymap.set('n', '<C-k>', '<C-w>k', { desc = 'Go to upper window' })
+vim.keymap.set('n', '<C-l>', '<C-w>l', { desc = 'Go to right window' })
+
+vim.keymap.set('n', '<leader>n', '<cmd>messages<CR>',
+  { silent = true, desc = 'Notification history' })
+vim.keymap.set('n', '<leader>uh', '<cmd>messages<CR>',
+  { silent = true, desc = 'Notification history' })
 
 vim.opt.grepprg = 'rg --vimgrep'
 vim.opt.grepformat = '%f:%l:%c:%m'
@@ -97,24 +138,74 @@ vim.api.nvim_create_autocmd('QuickFixCmdPost', {
   command = 'cwindow',
 })
 
-vim.keymap.set('n', ']q', ':cnext<CR>', { silent = true })
-vim.keymap.set('n', '[q', ':cprevious<CR>', { silent = true })
-vim.keymap.set('n', '<leader>qf', ':copen<CR>', { silent = true })
+vim.keymap.set('n', ']q', '<cmd>cnext<CR>', { silent = true, desc = 'Next quickfix item' })
+vim.keymap.set('n', '[q', '<cmd>cprevious<CR>', { silent = true, desc = 'Previous quickfix item' })
+vim.keymap.set('n', '<leader>qf', '<cmd>copen<CR>', { silent = true, desc = 'Open quickfix list' })
+
+local diagnostic_jump = function(count)
+  if vim.diagnostic.jump then
+    vim.diagnostic.jump({ count = count, float = true })
+  elseif count < 0 then
+    vim.diagnostic.goto_prev()
+  else
+    vim.diagnostic.goto_next()
+  end
+end
+vim.keymap.set('n', '[d', function() diagnostic_jump(-1) end,
+  { silent = true, desc = 'Previous diagnostic' })
+vim.keymap.set('n', ']d', function() diagnostic_jump(1) end,
+  { silent = true, desc = 'Next diagnostic' })
+vim.keymap.set('n', '<leader>sd', function()
+  vim.diagnostic.setloclist({ open = true })
+end, { silent = true, desc = 'Document diagnostics' })
+vim.keymap.set('n', '<leader>xx', function()
+  vim.diagnostic.setloclist({ open = true })
+end, { silent = true, desc = 'Document diagnostics' })
+vim.keymap.set('n', '<leader>cl', function()
+  local get_clients = vim.lsp.get_clients or vim.lsp.get_active_clients
+  local clients = get_clients({ bufnr = 0 })
+  if #clients == 0 then
+    vim.notify('No LSP clients attached to this buffer', vim.log.levels.INFO)
+    return
+  end
+
+  local lines = {}
+  for _, client in ipairs(clients) do
+    local root = client.root_dir or (client.config and client.config.root_dir) or 'no root'
+    table.insert(lines, string.format('%s (id %d) — %s', client.name, client.id, root))
+  end
+  vim.notify(table.concat(lines, '\n'), vim.log.levels.INFO, { title = 'LSP clients' })
+end, { silent = true, desc = 'LSP info' })
 
 local on_attach = function(client, bufnr)
-  local opts = { noremap=true, silent=true, buffer=bufnr }
+  local function lsp_map(mode, lhs, rhs, desc)
+    vim.keymap.set(mode, lhs, rhs, {
+      noremap = true,
+      silent = true,
+      buffer = bufnr,
+      desc = desc,
+    })
+  end
 
-  vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
-  vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
-  vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
-  vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
-  vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
-  vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
+  lsp_map('n', 'gd', vim.lsp.buf.definition, 'Go to definition')
+  lsp_map('n', 'gD', vim.lsp.buf.declaration, 'Go to declaration')
+  lsp_map('n', 'K', vim.lsp.buf.hover, 'Hover documentation')
+  lsp_map('n', 'gK', vim.lsp.buf.signature_help, 'Signature help')
+  lsp_map('i', '<C-k>', vim.lsp.buf.signature_help, 'Signature help')
+  lsp_map('n', 'gi', vim.lsp.buf.implementation, 'Go to implementation')
+  lsp_map('n', 'gI', vim.lsp.buf.implementation, 'Go to implementation')
+  lsp_map('n', 'gy', vim.lsp.buf.type_definition, 'Go to type definition')
+  lsp_map('n', 'gr', vim.lsp.buf.references, 'Find references')
+  lsp_map('n', '<leader>cr', vim.lsp.buf.rename, 'Rename symbol')
+  lsp_map('n', '<leader>rn', vim.lsp.buf.rename, 'Rename symbol (legacy)')
+  lsp_map('n', '<leader>ca', vim.lsp.buf.code_action, 'Code action')
 
   -- Visual mode formats only the selection: don't reformat code you didn't
   -- touch in a kernel patch.
-  vim.keymap.set('n', '<leader>f', function() vim.lsp.buf.format({ async = true }) end, opts)
-  vim.keymap.set('x', '<leader>f', function()
+  lsp_map('n', '<leader>f', function()
+    vim.lsp.buf.format({ async = true })
+  end, 'Format buffer')
+  lsp_map('x', '<leader>f', function()
     local s = vim.api.nvim_buf_get_mark(0, '<')
     local e = vim.api.nvim_buf_get_mark(0, '>')
     local ok = pcall(vim.lsp.buf.format, {
@@ -122,7 +213,7 @@ local on_attach = function(client, bufnr)
       range = { ['start'] = { s[1], 0 }, ['end'] = { e[1], 0 } },
     })
     if not ok then vim.lsp.buf.format({ async = true }) end
-  end, opts)
+  end, 'Format selection')
 end
 
 local ok_lsp, cmp_nvim_lsp = pcall(require, 'cmp_nvim_lsp')
