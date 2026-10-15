@@ -13,6 +13,10 @@ bootstrap on first launch, or `nvim +PlugInstall +qall`.
 | `Space p` / `Space ff` | find files with FZF |
 | `Space fg` / `Space sg` / `Space /` | Git files / grep / grep |
 | `Space fb` / `Space fr` | buffers / recent files |
+| `Space sb` / `Space sB` | lines in current / all open buffers |
+| `Space sw` | grep word under cursor |
+| `Space sh` / `Space sk` | help tags / keymaps |
+| `Space sc` / `Space sC` | command history / available commands |
 | `Space e` / `Space fe` | NERDTree toggle / reveal current file |
 | `Space bn` / `Space bp` / `Space bq` | next / previous / close buffer |
 | arrows or `C-h/j/k/l` | move between windows |

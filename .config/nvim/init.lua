@@ -109,6 +109,20 @@ vim.keymap.set('n', '<leader>fb', '<cmd>Buffers<CR>',
   { silent = true, desc = 'Find buffers (FZF)' })
 vim.keymap.set('n', '<leader>fr', '<cmd>History<CR>',
   { silent = true, desc = 'Recent files (FZF)' })
+vim.keymap.set('n', '<leader>sb', '<cmd>BLines<CR>',
+  { silent = true, desc = 'Search current buffer lines (FZF)' })
+vim.keymap.set('n', '<leader>sB', '<cmd>Lines<CR>',
+  { silent = true, desc = 'Search open buffer lines (FZF)' })
+vim.keymap.set('n', '<leader>sh', '<cmd>Helptags<CR>',
+  { silent = true, desc = 'Search help tags (FZF)' })
+vim.keymap.set('n', '<leader>sk', '<cmd>Maps<CR>',
+  { silent = true, desc = 'Search keymaps (FZF)' })
+vim.keymap.set('n', '<leader>sc', '<cmd>History:<CR>',
+  { silent = true, desc = 'Search command history (FZF)' })
+vim.keymap.set('n', '<leader>sC', '<cmd>Commands<CR>',
+  { silent = true, desc = 'Search commands (FZF)' })
+vim.keymap.set('n', '<leader>sw', ':Rg <C-R><C-W><CR>',
+  { silent = true, desc = 'Search word under cursor (FZF)' })
 
 vim.keymap.set('n', '<leader>bn', '<cmd>bnext<CR>',
   { silent = true, desc = 'Next buffer' })
