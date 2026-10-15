@@ -6,9 +6,7 @@ notmuch
 keyutils
 libsecret
 b4
-# GnuPG for git verify-tag on signed kernel tags.
 gnupg
-# GitHub CLI. Arch calls it github-cli, not gh -- gh is only the binary name.
 github-cli
 fzf
 ripgrep
@@ -16,11 +14,9 @@ zsh
 ghostty
 clang
 bear
-# Rust: `rust` bundles cargo/clippy/rustfmt + std source; rust-analyzer separate
 rust
 rust-analyzer
 bash-bats
 shellcheck
-# TLS bridge used only when this host cannot reach the mail server directly.
 stunnel
 msmtp

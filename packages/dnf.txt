@@ -4,10 +4,8 @@ neomutt
 isync
 notmuch
 keyutils
-# secret-tool lives in libsecret on Fedora, not a separate -tools package.
 libsecret
 b4
-# GnuPG for git verify-tag on signed kernel tags.
 gnupg2
 gh
 fzf
@@ -17,8 +15,6 @@ xclip
 wl-clipboard
 clang-tools-extra
 bear
-# Rust: toolchain + rust-analyzer LSP (packaged, since rustup.rs is unreachable
-# on hosts without direct internet access)
 rust
 cargo
 rust-analyzer
@@ -26,6 +22,5 @@ rust-src
 clippy
 bats
 ShellCheck
-# TLS bridge used only when this host cannot reach the mail server directly.
 stunnel
 msmtp

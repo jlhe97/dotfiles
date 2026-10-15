@@ -4,16 +4,9 @@ neomutt
 isync
 notmuch
 keyutils
-# libsecret-tools provides secret-tool, the desktop keyring backend bin/mail-pass
-# tries first on Linux. keyutils above is the headless fallback; a box with
-# neither has nowhere to put the mail password.
 libsecret-tools
 b4
-# GnuPG for git verify-tag on signed kernel tags.
 gnupg
-# GitHub CLI; sl shells out to it for `sl pr submit`. In universe on both
-# jammy (2.4.0) and noble (2.45.0), so no third-party apt repo is needed --
-# but both trail upstream, so add cli.github.com if you need a newer one.
 gh
 fzf
 ripgrep
@@ -24,14 +17,10 @@ clangd
 clang-tidy
 clang-format
 bear
-# Rust toolchain (consistent set from apt). NOTE: Debian/Ubuntu apt has NO
-# rust-analyzer or clippy package — install rust-analyzer via rustup
-# (`rustup component add rust-analyzer clippy`) or the GitHub release binary.
 rustc
 cargo
 rust-src
 bats
 shellcheck
-# TLS bridge used only when this host cannot reach the mail server directly.
 stunnel4
 msmtp
