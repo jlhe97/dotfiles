@@ -1,12 +1,12 @@
 -- Minimal Neovim config for C/C++ development with LSP
 
 -- Without this guard an older nvim dies partway through with a traceback that
--- says nothing about the real cause ("attempt to index field 'cmd'" on 0.6).
-if vim.fn.has('nvim-0.8') ~= 1 then
+-- says nothing about the real cause. Which-key 3 requires Neovim 0.9.4+.
+if vim.fn.has('nvim-0.9.4') ~= 1 then
   local ok, v = pcall(vim.version)
   local found = (ok and type(v) == 'table')
     and string.format('%d.%d.%d', v.major, v.minor, v.patch) or 'an older release'
-  error(('this config requires Neovim 0.8 or newer (found %s)'):format(found), 0)
+  error(('this config requires Neovim 0.9.4 or newer (found %s)'):format(found), 0)
 end
 
 vim.g.mapleader = ' '
@@ -29,6 +29,7 @@ vim.call('plug#', 'RRethy/vim-illuminate')
 vim.call('plug#', 'mg979/vim-visual-multi')
 vim.call('plug#', 'MunifTanjim/nui.nvim')   -- required by noice
 vim.call('plug#', 'folke/noice.nvim')       -- floating : cmdline (see below)
+vim.call('plug#', 'folke/which-key.nvim')   -- discoverable Space-prefix keymaps
 vim.call('plug#', 'NMAC427/guess-indent.nvim') -- best guess indentation convention
 
 -- vim-visual-multi: Ctrl+D selects the next occurrence (Ctrl+N is taken by NERDTree)
@@ -37,6 +38,23 @@ vim.g.VM_maps = {
   ['Find Subword Under'] = '<C-d>',
 }
 vim.call('plug#end')
+
+pcall(function()
+  local which_key = require('which-key')
+  which_key.setup({
+    delay = 300,
+    icons = { mappings = false },
+  })
+  which_key.add({
+    { '<leader>b', group = 'buffers' },
+    { '<leader>c', group = 'code / LSP' },
+    { '<leader>f', group = 'file / find' },
+    { '<leader>q', group = 'quickfix' },
+    { '<leader>s', group = 'search' },
+    { '<leader>u', group = 'UI' },
+    { '<leader>x', group = 'diagnostics' },
+  })
+end)
 
 -- fallback only if .editorconfig and guess-indent don't set it for us
 vim.opt.number = true
