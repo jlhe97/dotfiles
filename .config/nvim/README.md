@@ -1,10 +1,13 @@
 # Neovim config
 
 C/C++ and Rust with the built-in LSP client (no lspconfig), tuned for Linux
-kernel trees. Requires Neovim 0.8+.
+kernel trees. Requires Neovim 0.9.4+.
 
 Symlinked to `~/.config/nvim` by `install.sh` — don't copy the files. Plugins
 bootstrap on first launch, or `nvim +PlugInstall +qall`.
+
+Press `Space` and pause briefly to display the available keybindings with
+Which-key.
 
 ## Keys
 
