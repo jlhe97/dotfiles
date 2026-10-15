@@ -24,6 +24,7 @@ vim.call('plug#', 'junegunn/fzf.vim')
 vim.call('plug#', 'Mofiqul/vscode.nvim')
 vim.call('plug#', 'RRethy/vim-illuminate')
 vim.call('plug#', 'lewis6991/gitsigns.nvim')
+vim.call('plug#', 'folke/trouble.nvim')
 vim.call('plug#', 'mg979/vim-visual-multi')
 vim.call('plug#', 'MunifTanjim/nui.nvim')   -- required by noice
 vim.call('plug#', 'folke/noice.nvim')       -- floating : cmdline (see below)
@@ -146,6 +147,14 @@ pcall(function()
   })
 end)
 
+pcall(function()
+  require('trouble').setup({
+    modes = {
+      lsp = { win = { position = 'right' } },
+    },
+  })
+end)
+
 vim.g.NERDTreeShowHidden = 1          -- show dotfiles
 vim.g.NERDTreeMinimalUI = 1           -- hide the help hint / bookmarks header
 vim.g.NERDTreeQuitOnOpen = 0          -- keep the tree open after opening a file
@@ -217,8 +226,21 @@ vim.api.nvim_create_autocmd('QuickFixCmdPost', {
   command = 'cwindow',
 })
 
-vim.keymap.set('n', ']q', '<cmd>cnext<CR>', { silent = true, desc = 'Next quickfix item' })
-vim.keymap.set('n', '[q', '<cmd>cprevious<CR>', { silent = true, desc = 'Previous quickfix item' })
+local trouble_or_quickfix = function(direction)
+  local ok, trouble = pcall(require, 'trouble')
+  if ok and trouble.is_open() then
+    trouble[direction]({ skip_groups = true, jump = true })
+    return
+  end
+
+  local command = direction == 'next' and 'cnext' or 'cprevious'
+  local success, err = pcall(vim.cmd, command)
+  if not success then vim.notify(err, vim.log.levels.ERROR) end
+end
+vim.keymap.set('n', ']q', function() trouble_or_quickfix('next') end,
+  { silent = true, desc = 'Next quickfix/Trouble item' })
+vim.keymap.set('n', '[q', function() trouble_or_quickfix('prev') end,
+  { silent = true, desc = 'Previous quickfix/Trouble item' })
 vim.keymap.set('n', '<leader>qf', '<cmd>copen<CR>', { silent = true, desc = 'Open quickfix list' })
 
 local diagnostic_jump = function(count)
@@ -237,9 +259,18 @@ vim.keymap.set('n', ']d', function() diagnostic_jump(1) end,
 vim.keymap.set('n', '<leader>sd', function()
   vim.diagnostic.setloclist({ open = true })
 end, { silent = true, desc = 'Document diagnostics' })
-vim.keymap.set('n', '<leader>xx', function()
-  vim.diagnostic.setloclist({ open = true })
-end, { silent = true, desc = 'Document diagnostics' })
+vim.keymap.set('n', '<leader>xx', '<cmd>Trouble diagnostics toggle<CR>',
+  { silent = true, desc = 'Diagnostics (Trouble)' })
+vim.keymap.set('n', '<leader>xX', '<cmd>Trouble diagnostics toggle filter.buf=0<CR>',
+  { silent = true, desc = 'Buffer diagnostics (Trouble)' })
+vim.keymap.set('n', '<leader>cs', '<cmd>Trouble symbols toggle<CR>',
+  { silent = true, desc = 'Document symbols (Trouble)' })
+vim.keymap.set('n', '<leader>cS', '<cmd>Trouble lsp toggle<CR>',
+  { silent = true, desc = 'LSP definitions/references (Trouble)' })
+vim.keymap.set('n', '<leader>xL', '<cmd>Trouble loclist toggle<CR>',
+  { silent = true, desc = 'Location list (Trouble)' })
+vim.keymap.set('n', '<leader>xQ', '<cmd>Trouble qflist toggle<CR>',
+  { silent = true, desc = 'Quickfix list (Trouble)' })
 vim.keymap.set('n', '<leader>cl', function()
   local get_clients = vim.lsp.get_clients or vim.lsp.get_active_clients
   local clients = get_clients({ bufnr = 0 })
