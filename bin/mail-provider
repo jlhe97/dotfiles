@@ -1,7 +1,5 @@
 #!/bin/bash
-# Single source of truth for which mail provider this setup talks to.
-# Sourced by bin/mail-* and by install.sh; not meant to be run directly.
-# Override any of these in ~/.config/dotfiles/mail.conf (gitignored).
+# Sourced by mail commands and install.sh; override in ~/.config/dotfiles/mail.conf.
 
 MAIL_PROVIDER="${MAIL_PROVIDER:-fastmail}"
 MAIL_IMAP_HOST="${MAIL_IMAP_HOST:-imap.fastmail.com}"
@@ -15,7 +13,10 @@ MAIL_APP_PASSWORD_LEN="${MAIL_APP_PASSWORD_LEN:-16}"
 # shellcheck source=/dev/null
 [ -f "$HOME/.config/dotfiles/mail.conf" ] && . "$HOME/.config/dotfiles/mail.conf"
 
-MAIL_DIR="${MAIL_DIR:-$HOME/Mail/$MAIL_PROVIDER}"
+MAIL_FOLDER="${MAIL_FOLDER:-Kernel}"
+MAIL_SENT_FOLDER="${MAIL_SENT_FOLDER:-$MAIL_FOLDER/Sent}"
+# The separate root excludes old whole-account downloads from the index.
+MAIL_DIR="${MAIL_DIR:-$HOME/Mail/$MAIL_PROVIDER-kernel}"
 MAIL_SECRET_SERVICE="${MAIL_SECRET_SERVICE:-$MAIL_PROVIDER-imap}"
 MAIL_BRIDGE_NAME="${MAIL_BRIDGE_NAME:-stunnel-$MAIL_PROVIDER}"
 MAIL_BRIDGE_CONF="${MAIL_BRIDGE_CONF:-$HOME/.config/stunnel/$MAIL_PROVIDER.conf}"

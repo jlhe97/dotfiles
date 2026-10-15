@@ -1128,17 +1128,53 @@ setup_bridge_stubs() {
 # ---------------------------------------------------------------------------
 
 @test "mail-provider derives every name from MAIL_PROVIDER" {
-  run bash -c "MAIL_PROVIDER=posteo HOME='$TEST_HOME' . '$DOTFILES_DIR/bin/mail-provider'; \
-    printf '%s|%s|%s|%s' \"\$MAIL_DIR\" \"\$MAIL_SECRET_SERVICE\" \"\$MAIL_BRIDGE_NAME\" \"\$MAIL_BRIDGE_CONF\""
+  run env MAIL_PROVIDER=posteo bash -c '
+    . "$1"
+    printf "%s\n" "$MAIL_DIR" "$MAIL_SECRET_SERVICE" "$MAIL_BRIDGE_NAME" "$MAIL_BRIDGE_CONF"
+  ' _ "$DOTFILES_DIR/bin/mail-provider"
   [ "$status" -eq 0 ]
-  [ "$output" = "$TEST_HOME/Mail/posteo|posteo-imap|stunnel-posteo|$TEST_HOME/.config/stunnel/posteo.conf" ]
+  [ "${lines[0]}" = "$TEST_HOME/Mail/posteo-kernel" ]
+  [ "${lines[1]}" = "posteo-imap" ]
+  [ "${lines[2]}" = "stunnel-posteo" ]
+  [ "${lines[3]}" = "$TEST_HOME/.config/stunnel/posteo.conf" ]
+}
+
+@test "mail-provider defaults to isolated kernel mail and a dedicated sent folder" {
+  run bash -c '
+    . "$1"
+    printf "%s\n" "$MAIL_FOLDER" "$MAIL_SENT_FOLDER" "$MAIL_DIR"
+  ' _ "$DOTFILES_DIR/bin/mail-provider"
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "Kernel" ]
+  [ "${lines[1]}" = "Kernel/Sent" ]
+  [ "${lines[2]}" = "$TEST_HOME/Mail/fastmail-kernel" ]
+}
+
+@test "mail-provider reads folder and directory overrides from mail.conf" {
+  mkdir -p "$TEST_HOME/.config/dotfiles"
+  cat > "$TEST_HOME/.config/dotfiles/mail.conf" <<EOF
+MAIL_FOLDER="Kernel Work"
+MAIL_DIR="$TEST_HOME/custom-mail"
+EOF
+  run bash -c '
+    . "$1"
+    printf "%s\n" "$MAIL_FOLDER" "$MAIL_SENT_FOLDER" "$MAIL_DIR"
+  ' _ "$DOTFILES_DIR/bin/mail-provider"
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "Kernel Work" ]
+  [ "${lines[1]}" = "Kernel Work/Sent" ]
+  [ "${lines[2]}" = "$TEST_HOME/custom-mail" ]
 }
 
 @test "mail-provider defaults reproduce the fastmail setup" {
-  run bash -c "HOME='$TEST_HOME' . '$DOTFILES_DIR/bin/mail-provider'; \
-    printf '%s|%s|%s' \"\$MAIL_IMAP_HOST\" \"\$MAIL_SMTP_HOST\" \"\$MAIL_SECRET_SERVICE\""
+  run bash -c '
+    . "$1"
+    printf "%s\n" "$MAIL_IMAP_HOST" "$MAIL_SMTP_HOST" "$MAIL_SECRET_SERVICE"
+  ' _ "$DOTFILES_DIR/bin/mail-provider"
   [ "$status" -eq 0 ]
-  [ "$output" = "imap.fastmail.com|smtp.fastmail.com|fastmail-imap" ]
+  [ "${lines[0]}" = "imap.fastmail.com" ]
+  [ "${lines[1]}" = "smtp.fastmail.com" ]
+  [ "${lines[2]}" = "fastmail-imap" ]
 }
 
 @test "configure_mail_bridge follows the configured provider, not a hardcoded host" {

@@ -139,6 +139,129 @@ _install() {
   [[ "$content" == *"new@example.com"* ]]
 }
 
+@test "mail sync selects only Kernel and Kernel/Sent with stable local names" {
+  _install
+
+  local config="$TEST_HOME/.mbsyncrc"
+  [ "$(grep -c '^Channel ' "$config")" -eq 2 ]
+  [ "$(grep -c '^Far ' "$config")" -eq 2 ]
+  grep -qxF 'Far ":fastmail-remote:Kernel"' "$config"
+  grep -qxF 'Far ":fastmail-remote:Kernel/Sent"' "$config"
+  grep -qxF 'Near :fastmail-local:INBOX' "$config"
+  grep -qxF 'Near :fastmail-local:Sent' "$config"
+  grep -qxF 'Group fastmail' "$config"
+  grep -qxF 'Channels fastmail-inbox fastmail-sent' "$config"
+  ! grep -q '^Patterns\? ' "$config"
+  [ -d "$TEST_HOME/Mail/fastmail-kernel/Sent/cur" ]
+  [ -d "$TEST_HOME/Mail/fastmail-kernel/Sent/new" ]
+  [ -d "$TEST_HOME/Mail/fastmail-kernel/Sent/tmp" ]
+}
+
+@test "real mbsync maps only kernel mail and bootstraps the dedicated sent folder" {
+  command -v mbsync >/dev/null || skip "isync is not installed"
+  _install
+
+  local remote="$TEST_HOME/remote"
+  local folder
+  for folder in INBOX Sent Kernel; do
+    mkdir -p "$remote/$folder/cur" "$remote/$folder/new" "$remote/$folder/tmp"
+    cat > "$remote/$folder/cur/fixture:2,S" <<EOF
+From: test@example.com
+To: test@example.com
+Subject: fixture
+Message-ID: <$folder@example.com>
+
+Test fixture.
+EOF
+  done
+
+  local config="$TEST_HOME/local-sync.conf"
+  cat > "$config" <<EOF
+MaildirStore fastmail-remote
+Path $remote/
+Inbox $remote/INBOX
+Subfolders Verbatim
+
+MaildirStore fastmail-local
+Path $MAIL_DIR/
+Inbox $MAIL_DIR/INBOX
+Subfolders Verbatim
+
+EOF
+  sed -n '/^Channel /,$p' "$TEST_HOME/.mbsyncrc" >> "$config"
+
+  run mbsync -c "$config" fastmail
+  [ "$status" -eq 0 ]
+  [ -d "$remote/Kernel/Sent/cur" ]
+  [ "$(find "$MAIL_DIR/INBOX/cur" -type f | wc -l)" -eq 1 ]
+  [ "$(find "$MAIL_DIR/Sent/cur" -type f | wc -l)" -eq 0 ]
+  [ -f "$remote/INBOX/cur/fixture:2,S" ]
+  [ -f "$remote/Sent/cur/fixture:2,S" ]
+  [ ! -e "$MAIL_DIR/Kernel" ]
+
+  cat > "$MAIL_DIR/Sent/cur/outgoing:2,S" <<'EOF'
+From: test@example.com
+To: list@example.com
+Subject: sent fixture
+Message-ID: <outgoing@example.com>
+
+Test fixture.
+EOF
+  run mbsync -c "$config" fastmail
+  [ "$status" -eq 0 ]
+  [ "$(find "$remote/Kernel/Sent/cur" -type f | wc -l)" -eq 1 ]
+  [ "$(find "$remote/Sent/cur" -type f | wc -l)" -eq 1 ]
+}
+
+@test "mail paths and notmuch index are isolated from old whole-account mail" {
+  mkdir -p "$TEST_HOME/Mail/fastmail/INBOX/cur"
+  echo 'old personal mail' > "$TEST_HOME/Mail/fastmail/INBOX/cur/personal"
+  _install
+
+  grep -qxF "Path $TEST_HOME/Mail/fastmail-kernel/" "$TEST_HOME/.mbsyncrc"
+  grep -qxF "path=$TEST_HOME/Mail/fastmail-kernel" "$TEST_HOME/.notmuch-config"
+  grep -qxF "set my_maildir = \"$TEST_HOME/Mail/fastmail-kernel\"" "$TEST_HOME/.neomutt/local.rc"
+  grep -qxF "set nm_default_url = \"notmuch://$TEST_HOME/Mail/fastmail-kernel\"" "$TEST_HOME/.neomutt/local.rc"
+  [ "$(cat "$TEST_HOME/Mail/fastmail/INBOX/cur/personal")" = "old personal mail" ]
+}
+
+@test "reinstall migrates legacy local.rc paths even with the same identity" {
+  mkdir -p "$TEST_HOME/.neomutt"
+  cat > "$TEST_HOME/.neomutt/local.rc" <<EOF
+set imap_user = "test@example.com"
+set real_name = "Test User"
+set my_maildir = "$TEST_HOME/Mail/fastmail"
+set nm_default_url = "notmuch://$TEST_HOME/Mail/fastmail"
+EOF
+
+  _install
+
+  grep -qxF "set nm_default_url = \"notmuch://$TEST_HOME/Mail/fastmail-kernel\"" "$TEST_HOME/.neomutt/local.rc"
+  local second_out
+  second_out="$(_install 2>&1)"
+  [[ "$second_out" == *"already up to date"* ]]
+}
+
+@test "folder overrides stay exact mappings, including spaces" {
+  MAIL_FOLDER="Kernel Work"
+  MAIL_SENT_FOLDER="Kernel Work/Sent Patches"
+  _install
+
+  grep -qxF 'Far ":fastmail-remote:Kernel Work"' "$TEST_HOME/.mbsyncrc"
+  grep -qxF 'Far ":fastmail-remote:Kernel Work/Sent Patches"' "$TEST_HOME/.mbsyncrc"
+  ! grep -q '^Patterns\? ' "$TEST_HOME/.mbsyncrc"
+}
+
+@test "reinstall updates local.rc when a custom mail path changes" {
+  _install
+  MAIL_DIR="$TEST_HOME/Mail/custom-kernel"
+  _install
+
+  grep -qxF "set my_maildir = \"$MAIL_DIR\"" "$TEST_HOME/.neomutt/local.rc"
+  grep -qxF "set nm_default_url = \"notmuch://$MAIL_DIR\"" "$TEST_HOME/.neomutt/local.rc"
+  grep -qxF "path=$MAIL_DIR" "$TEST_HOME/.notmuch-config"
+}
+
 @test "signature is created from the installed name as a real file" {
   _install
 
