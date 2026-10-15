@@ -32,7 +32,10 @@ Which-key.
 | `K` / `gK` | hover docs / signature help |
 | `Space cr` / `Space ca` | rename / code actions |
 | `Space cl` | attached LSP clients and roots |
-| `[d` / `]d` / `Space sd` / `Space xx` | previous / next / list diagnostics |
+| `[d` / `]d` / `Space sd` | previous / next / location-list diagnostics |
+| `Space xx` / `Space xX` | workspace / current-buffer diagnostics in Trouble |
+| `Space cs` / `Space cS` | document symbols / LSP locations in Trouble |
+| `Space xL` / `Space xQ` | location / quickfix list in Trouble |
 | `Space f` | format — visual mode formats the selection only |
 | `Tab` / `S-Tab` / `CR` | completion: next, previous, accept |
 | `C-Space` | trigger completion |
