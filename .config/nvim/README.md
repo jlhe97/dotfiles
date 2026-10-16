@@ -19,6 +19,7 @@ after installing the plugins, and `:TSUpdate` when updating Treesitter.
 | `Space p` / `Space ff` | find files with FZF |
 | `Space fg` / `Space sg` / `Space /` | Git files / grep / grep |
 | `Space fb` / `Space fr` | buffers / recent files |
+| `Space ft` / `C-/` | toggle the current project's terminal |
 | `Space sb` / `Space sB` | lines in current / all open buffers |
 | `Space sw` | grep word under cursor |
 | `Space sh` / `Space sk` | help tags / keymaps |
@@ -36,6 +37,7 @@ after installing the plugins, and `:TSUpdate` when updating Treesitter.
 | `[o` / `]o`, `[s` / `]s`, `[z` / `]z` | loops, scopes, folds |
 | `;` / `,` | repeat / reverse the last character or structural movement |
 | arrows or `C-h/j/k/l` | move between windows |
+| terminal `C-h/j/k/l` / `Esc Esc` | move between windows / leave terminal mode |
 | `gd` `gD` `gr` `gI` `gy` | definition, declaration, references, implementation, type |
 | `K` / `gK` | hover docs / signature help |
 | `Space cr` / `Space ca` | rename / code actions |
