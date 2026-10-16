@@ -1,13 +1,13 @@
--- Minimal Neovim config for C/C++ development with LSP
 
--- Without this guard an older nvim dies partway through with a traceback that
--- says nothing about the real cause ("attempt to index field 'cmd'" on 0.6).
-if vim.fn.has('nvim-0.8') ~= 1 then
+if vim.fn.has('nvim-0.12') ~= 1 then
   local ok, v = pcall(vim.version)
   local found = (ok and type(v) == 'table')
     and string.format('%d.%d.%d', v.major, v.minor, v.patch) or 'an older release'
-  error(('this config requires Neovim 0.8 or newer (found %s)'):format(found), 0)
+  error(('this config requires Neovim 0.12 or newer (found %s)'):format(found), 0)
 end
+
+vim.g.mapleader = ' '
+vim.g.maplocalleader = ' '
 
 -- vim-plug is bootstrapped by install.sh; nothing to do here.
 
@@ -23,9 +23,16 @@ vim.call('plug#', 'junegunn/fzf')
 vim.call('plug#', 'junegunn/fzf.vim')
 vim.call('plug#', 'Mofiqul/vscode.nvim')
 vim.call('plug#', 'RRethy/vim-illuminate')
+vim.call('plug#', 'lewis6991/gitsigns.nvim')
+vim.call('plug#', 'folke/trouble.nvim')
+vim.call('plug#', 'nvim-treesitter/nvim-treesitter', { branch = 'main' })
+vim.call('plug#', 'nvim-treesitter/nvim-treesitter-textobjects', { branch = 'main' })
+vim.call('plug#', 'folke/persistence.nvim')
+vim.call('plug#', 'MagicDuck/grug-far.nvim')
 vim.call('plug#', 'mg979/vim-visual-multi')
 vim.call('plug#', 'MunifTanjim/nui.nvim')   -- required by noice
 vim.call('plug#', 'folke/noice.nvim')       -- floating : cmdline (see below)
+vim.call('plug#', 'folke/which-key.nvim')   -- discoverable Space-prefix keymaps
 vim.call('plug#', 'NMAC427/guess-indent.nvim') -- best guess indentation convention
 
 -- vim-visual-multi: Ctrl+D selects the next occurrence (Ctrl+N is taken by NERDTree)
@@ -34,6 +41,25 @@ vim.g.VM_maps = {
   ['Find Subword Under'] = '<C-d>',
 }
 vim.call('plug#end')
+
+pcall(function()
+  local which_key = require('which-key')
+  which_key.setup({
+    delay = 300,
+    icons = { mappings = false },
+  })
+  which_key.add({
+    { '<leader>b', group = 'buffers' },
+    { '<leader>c', group = 'code / LSP' },
+    { '<leader>f', group = 'file / find' },
+    { '<leader>g', group = 'git' },
+    { '<leader>gh', group = 'hunks' },
+    { '<leader>q', group = 'session / quickfix' },
+    { '<leader>s', group = 'search' },
+    { '<leader>u', group = 'UI' },
+    { '<leader>x', group = 'diagnostics' },
+  })
+end)
 
 -- fallback only if .editorconfig and guess-indent don't set it for us
 vim.opt.number = true
@@ -44,12 +70,10 @@ vim.opt.softtabstop = -1 -- follow shiftwidth
 vim.opt.autoindent = true
 vim.opt.signcolumn = 'yes'
 vim.opt.updatetime = 300
+vim.opt.inccommand = 'nosplit' -- live inline preview for :substitute
 
--- Color scheme: match VSCode's default dark theme (Dark+/Dark Modern)
 vim.opt.termguicolors = true
 vim.o.background = 'dark'
--- vim.cmd('...') not vim.cmd.colorscheme(...): Lua evaluates the argument
--- first, so the index would happen outside the pcall and take the config down.
 pcall(vim.cmd, 'colorscheme vscode')
 
 -- Match an existing file's indentation when no .editorconfig speaks for it
@@ -78,16 +102,279 @@ pcall(function()
   })
 end)
 
+pcall(function()
+  require('gitsigns').setup({
+    signs = {
+      add = { text = '│' },
+      change = { text = '│' },
+      delete = { text = '_' },
+      topdelete = { text = '‾' },
+      changedelete = { text = '~' },
+      untracked = { text = '┆' },
+    },
+    on_attach = function(bufnr)
+      local gs = package.loaded.gitsigns
+      local function git_map(mode, lhs, rhs, desc)
+        vim.keymap.set(mode, lhs, rhs, {
+          buffer = bufnr,
+          silent = true,
+          desc = desc,
+        })
+      end
+
+      git_map('n', ']h', function()
+        if vim.wo.diff then
+          vim.cmd.normal({ ']c', bang = true })
+        else
+          gs.nav_hunk('next')
+        end
+      end, 'Next Git hunk')
+      git_map('n', '[h', function()
+        if vim.wo.diff then
+          vim.cmd.normal({ '[c', bang = true })
+        else
+          gs.nav_hunk('prev')
+        end
+      end, 'Previous Git hunk')
+      git_map('n', ']H', function() gs.nav_hunk('last') end, 'Last Git hunk')
+      git_map('n', '[H', function() gs.nav_hunk('first') end, 'First Git hunk')
+      git_map({ 'n', 'x' }, '<leader>ghs', ':Gitsigns stage_hunk<CR>', 'Stage Git hunk')
+      git_map({ 'n', 'x' }, '<leader>ghr', ':Gitsigns reset_hunk<CR>', 'Reset Git hunk')
+      git_map('n', '<leader>ghS', gs.stage_buffer, 'Stage Git buffer')
+      git_map('n', '<leader>ghp', gs.preview_hunk_inline, 'Preview Git hunk')
+      git_map('n', '<leader>ghb', function()
+        gs.blame_line({ full = true })
+      end, 'Blame current line')
+      git_map('n', '<leader>ghB', gs.blame, 'Blame current buffer')
+      git_map('n', '<leader>ghd', gs.diffthis, 'Diff current buffer')
+      git_map({ 'o', 'x' }, 'ih', ':<C-U>Gitsigns select_hunk<CR>', 'Select Git hunk')
+    end,
+  })
+end)
+
+pcall(function()
+  require('trouble').setup({
+    modes = {
+      lsp = { win = { position = 'right' } },
+    },
+  })
+end)
+
+pcall(function()
+  require('grug-far').setup({
+    headerMaxWidth = 80,
+  })
+end)
+vim.keymap.set({ 'n', 'x' }, '<leader>sr', function()
+  local extension = vim.bo.buftype == '' and vim.fn.expand('%:e')
+  require('grug-far').open({
+    transient = true,
+    prefills = {
+      filesFilter = extension and extension ~= '' and '*.' .. extension or nil,
+    },
+  })
+end, { silent = true, desc = 'Search and replace (Grug Far)' })
+
+-- Do not download parsers during startup: that makes editor startup depend on
+-- network/proxy state. :TSInstallCore explicitly installs the portable set.
+local treesitter_languages = {
+  'bash',
+  'c',
+  'cmake',
+  'cpp',
+  'diff',
+  'json',
+  'lua',
+  'make',
+  'markdown',
+  'markdown_inline',
+  'python',
+  'query',
+  'rust',
+  'toml',
+  'vim',
+  'vimdoc',
+  'yaml',
+}
+
+pcall(function()
+  require('nvim-treesitter').setup({
+    install_dir = vim.fn.stdpath('data') .. '/site',
+  })
+
+  vim.api.nvim_create_user_command('TSInstallCore', function()
+    require('nvim-treesitter').install(treesitter_languages)
+  end, { desc = 'Install the configured Treesitter parsers' })
+
+  vim.api.nvim_create_autocmd('FileType', {
+    group = vim.api.nvim_create_augroup('PortableTreesitter', { clear = true }),
+    pattern = treesitter_languages,
+    callback = function(event)
+      local lang = vim.treesitter.language.get_lang(vim.bo[event.buf].filetype)
+      if lang then pcall(vim.treesitter.start, event.buf, lang) end
+    end,
+  })
+end)
+
+pcall(function()
+  require('nvim-treesitter-textobjects').setup({
+    move = { set_jumps = true },
+  })
+
+  local move = require('nvim-treesitter-textobjects.move')
+  local repeat_move = require('nvim-treesitter-textobjects.repeatable_move')
+  local modes = { 'n', 'x', 'o' }
+  local function ts_map(lhs, rhs, desc)
+    vim.keymap.set(modes, lhs, rhs, { silent = true, desc = desc })
+  end
+
+  ts_map(']f', function()
+    move.goto_next_start('@function.outer', 'textobjects')
+  end, 'Next function start')
+  ts_map('[f', function()
+    move.goto_previous_start('@function.outer', 'textobjects')
+  end, 'Previous function start')
+  ts_map(']F', function()
+    move.goto_next_end('@function.outer', 'textobjects')
+  end, 'Next function end')
+  ts_map('[F', function()
+    move.goto_previous_end('@function.outer', 'textobjects')
+  end, 'Previous function end')
+
+  ts_map(']c', function()
+    move.goto_next_start('@class.outer', 'textobjects')
+  end, 'Next class start')
+  ts_map('[c', function()
+    move.goto_previous_start('@class.outer', 'textobjects')
+  end, 'Previous class start')
+  ts_map(']C', function()
+    move.goto_next_end('@class.outer', 'textobjects')
+  end, 'Next class end')
+  ts_map('[C', function()
+    move.goto_previous_end('@class.outer', 'textobjects')
+  end, 'Previous class end')
+
+  ts_map(']o', function()
+    move.goto_next_start({ '@loop.inner', '@loop.outer' }, 'textobjects')
+  end, 'Next loop')
+  ts_map('[o', function()
+    move.goto_previous_start({ '@loop.inner', '@loop.outer' }, 'textobjects')
+  end, 'Previous loop')
+  ts_map(']s', function()
+    move.goto_next_start('@local.scope', 'locals')
+  end, 'Next local scope')
+  ts_map('[s', function()
+    move.goto_previous_start('@local.scope', 'locals')
+  end, 'Previous local scope')
+  ts_map(']z', function()
+    move.goto_next_start('@fold', 'folds')
+  end, 'Next fold')
+  ts_map('[z', function()
+    move.goto_previous_start('@fold', 'folds')
+  end, 'Previous fold')
+
+  vim.keymap.set(modes, ';', repeat_move.repeat_last_move,
+    { desc = 'Repeat last movement' })
+  vim.keymap.set(modes, ',', repeat_move.repeat_last_move_opposite,
+    { desc = 'Repeat last movement opposite' })
+  vim.keymap.set(modes, 'f', repeat_move.builtin_f_expr, { expr = true })
+  vim.keymap.set(modes, 'F', repeat_move.builtin_F_expr, { expr = true })
+  vim.keymap.set(modes, 't', repeat_move.builtin_t_expr, { expr = true })
+  vim.keymap.set(modes, 'T', repeat_move.builtin_T_expr, { expr = true })
+end)
+
+-- Save project sessions only after a real file has been opened. Terminal and
+-- help buffers are deliberately excluded from the restored workspace.
+vim.opt.sessionoptions = {
+  'buffers',
+  'curdir',
+  'folds',
+  'localoptions',
+  'tabpages',
+  'winpos',
+  'winsize',
+}
+pcall(function()
+  require('persistence').setup({
+    need = 1,
+    branch = true,
+  })
+end)
+vim.keymap.set('n', '<leader>qs', function()
+  require('persistence').load()
+end, { silent = true, desc = 'Restore project session' })
+vim.keymap.set('n', '<leader>qS', function()
+  require('persistence').select()
+end, { silent = true, desc = 'Select session' })
+vim.keymap.set('n', '<leader>ql', function()
+  require('persistence').load({ last = true })
+end, { silent = true, desc = 'Restore last session' })
+vim.keymap.set('n', '<leader>qd', function()
+  require('persistence').stop()
+end, { silent = true, desc = "Don't save current session" })
+
 vim.g.NERDTreeShowHidden = 1          -- show dotfiles
 vim.g.NERDTreeMinimalUI = 1           -- hide the help hint / bookmarks header
 vim.g.NERDTreeQuitOnOpen = 0          -- keep the tree open after opening a file
-vim.keymap.set('n', '<C-n>', ':NERDTreeToggle<CR>', { silent = true })   -- open/close
-vim.keymap.set('n', '<leader>n', ':NERDTreeFind<CR>', { silent = true }) -- reveal current file
+vim.keymap.set('n', '<C-n>', '<cmd>NERDTreeToggle<CR>',
+  { silent = true, desc = 'Explorer toggle' })
+vim.keymap.set('n', '<leader>e', '<cmd>NERDTreeToggle<CR>',
+  { silent = true, desc = 'Explorer toggle' })
+vim.keymap.set('n', '<leader>fe', '<cmd>NERDTreeFind<CR>',
+  { silent = true, desc = 'Explorer reveal current file' })
 
--- fzf fuzzy finder (needs system fzf + ripgrep, installed via packages)
-vim.keymap.set('n', '<C-p>', ':Files<CR>', { silent = true })        -- fuzzy file names
-vim.keymap.set('n', '<leader>fg', ':Rg<CR>', { silent = true })      -- grep file contents
-vim.keymap.set('n', '<leader>fb', ':Buffers<CR>', { silent = true }) -- open buffers
+-- fzf replaces mnvim's Myles picker in the regular profile. It needs the
+-- system fzf and ripgrep packages installed by install.sh.
+vim.keymap.set('n', '<C-p>', '<cmd>Files<CR>',
+  { silent = true, desc = 'Find files (FZF)' })
+vim.keymap.set('n', '<leader>p', '<cmd>Files<CR>',
+  { silent = true, desc = 'Find files (FZF)' })
+vim.keymap.set('n', '<leader>ff', '<cmd>Files<CR>',
+  { silent = true, desc = 'Find files (FZF)' })
+vim.keymap.set('n', '<leader>fg', '<cmd>GFiles<CR>',
+  { silent = true, desc = 'Find Git files (FZF)' })
+vim.keymap.set('n', '<leader>sg', '<cmd>Rg<CR>',
+  { silent = true, desc = 'Grep project (FZF)' })
+vim.keymap.set('n', '<leader>/', '<cmd>Rg<CR>',
+  { silent = true, desc = 'Grep project (FZF)' })
+vim.keymap.set('n', '<leader>fb', '<cmd>Buffers<CR>',
+  { silent = true, desc = 'Find buffers (FZF)' })
+vim.keymap.set('n', '<leader>fr', '<cmd>History<CR>',
+  { silent = true, desc = 'Recent files (FZF)' })
+vim.keymap.set('n', '<leader>sb', '<cmd>BLines<CR>',
+  { silent = true, desc = 'Search current buffer lines (FZF)' })
+vim.keymap.set('n', '<leader>sB', '<cmd>Lines<CR>',
+  { silent = true, desc = 'Search open buffer lines (FZF)' })
+vim.keymap.set('n', '<leader>sh', '<cmd>Helptags<CR>',
+  { silent = true, desc = 'Search help tags (FZF)' })
+vim.keymap.set('n', '<leader>sk', '<cmd>Maps<CR>',
+  { silent = true, desc = 'Search keymaps (FZF)' })
+vim.keymap.set('n', '<leader>sc', '<cmd>History:<CR>',
+  { silent = true, desc = 'Search command history (FZF)' })
+vim.keymap.set('n', '<leader>sC', '<cmd>Commands<CR>',
+  { silent = true, desc = 'Search commands (FZF)' })
+vim.keymap.set('n', '<leader>sw', ':Rg <C-R><C-W><CR>',
+  { silent = true, desc = 'Search word under cursor (FZF)' })
+
+vim.keymap.set('n', '<leader>bn', '<cmd>bnext<CR>',
+  { silent = true, desc = 'Next buffer' })
+vim.keymap.set('n', '<leader>bp', '<cmd>bprevious<CR>',
+  { silent = true, desc = 'Previous buffer' })
+vim.keymap.set('n', '<leader>bq', '<cmd>bdelete<CR>',
+  { silent = true, desc = 'Close current buffer' })
+vim.keymap.set('n', '<Left>', '<C-w>h', { desc = 'Go to left window' })
+vim.keymap.set('n', '<Down>', '<C-w>j', { desc = 'Go to lower window' })
+vim.keymap.set('n', '<Up>', '<C-w>k', { desc = 'Go to upper window' })
+vim.keymap.set('n', '<Right>', '<C-w>l', { desc = 'Go to right window' })
+vim.keymap.set('n', '<C-h>', '<C-w>h', { desc = 'Go to left window' })
+vim.keymap.set('n', '<C-j>', '<C-w>j', { desc = 'Go to lower window' })
+vim.keymap.set('n', '<C-k>', '<C-w>k', { desc = 'Go to upper window' })
+vim.keymap.set('n', '<C-l>', '<C-w>l', { desc = 'Go to right window' })
+
+vim.keymap.set('n', '<leader>n', '<cmd>messages<CR>',
+  { silent = true, desc = 'Notification history' })
+vim.keymap.set('n', '<leader>uh', '<cmd>messages<CR>',
+  { silent = true, desc = 'Notification history' })
 
 vim.opt.grepprg = 'rg --vimgrep'
 vim.opt.grepformat = '%f:%l:%c:%m'
@@ -97,24 +384,96 @@ vim.api.nvim_create_autocmd('QuickFixCmdPost', {
   command = 'cwindow',
 })
 
-vim.keymap.set('n', ']q', ':cnext<CR>', { silent = true })
-vim.keymap.set('n', '[q', ':cprevious<CR>', { silent = true })
-vim.keymap.set('n', '<leader>qf', ':copen<CR>', { silent = true })
+local trouble_or_quickfix = function(direction)
+  local ok, trouble = pcall(require, 'trouble')
+  if ok and trouble.is_open() then
+    trouble[direction]({ skip_groups = true, jump = true })
+    return
+  end
+
+  local command = direction == 'next' and 'cnext' or 'cprevious'
+  local success, err = pcall(vim.cmd, command)
+  if not success then vim.notify(err, vim.log.levels.ERROR) end
+end
+vim.keymap.set('n', ']q', function() trouble_or_quickfix('next') end,
+  { silent = true, desc = 'Next quickfix/Trouble item' })
+vim.keymap.set('n', '[q', function() trouble_or_quickfix('prev') end,
+  { silent = true, desc = 'Previous quickfix/Trouble item' })
+vim.keymap.set('n', '<leader>qf', '<cmd>copen<CR>', { silent = true, desc = 'Open quickfix list' })
+
+local diagnostic_jump = function(count)
+  if vim.diagnostic.jump then
+    vim.diagnostic.jump({ count = count, float = true })
+  elseif count < 0 then
+    vim.diagnostic.goto_prev()
+  else
+    vim.diagnostic.goto_next()
+  end
+end
+vim.keymap.set('n', '[d', function() diagnostic_jump(-1) end,
+  { silent = true, desc = 'Previous diagnostic' })
+vim.keymap.set('n', ']d', function() diagnostic_jump(1) end,
+  { silent = true, desc = 'Next diagnostic' })
+vim.keymap.set('n', '<leader>sd', function()
+  vim.diagnostic.setloclist({ open = true })
+end, { silent = true, desc = 'Document diagnostics' })
+vim.keymap.set('n', '<leader>xx', '<cmd>Trouble diagnostics toggle<CR>',
+  { silent = true, desc = 'Diagnostics (Trouble)' })
+vim.keymap.set('n', '<leader>xX', '<cmd>Trouble diagnostics toggle filter.buf=0<CR>',
+  { silent = true, desc = 'Buffer diagnostics (Trouble)' })
+vim.keymap.set('n', '<leader>cs', '<cmd>Trouble symbols toggle<CR>',
+  { silent = true, desc = 'Document symbols (Trouble)' })
+vim.keymap.set('n', '<leader>cS', '<cmd>Trouble lsp toggle<CR>',
+  { silent = true, desc = 'LSP definitions/references (Trouble)' })
+vim.keymap.set('n', '<leader>xL', '<cmd>Trouble loclist toggle<CR>',
+  { silent = true, desc = 'Location list (Trouble)' })
+vim.keymap.set('n', '<leader>xQ', '<cmd>Trouble qflist toggle<CR>',
+  { silent = true, desc = 'Quickfix list (Trouble)' })
+vim.keymap.set('n', '<leader>cl', function()
+  local get_clients = vim.lsp.get_clients or vim.lsp.get_active_clients
+  local clients = get_clients({ bufnr = 0 })
+  if #clients == 0 then
+    vim.notify('No LSP clients attached to this buffer', vim.log.levels.INFO)
+    return
+  end
+
+  local lines = {}
+  for _, client in ipairs(clients) do
+    local root = client.root_dir or (client.config and client.config.root_dir) or 'no root'
+    table.insert(lines, string.format('%s (id %d) — %s', client.name, client.id, root))
+  end
+  vim.notify(table.concat(lines, '\n'), vim.log.levels.INFO, { title = 'LSP clients' })
+end, { silent = true, desc = 'LSP info' })
 
 local on_attach = function(client, bufnr)
-  local opts = { noremap=true, silent=true, buffer=bufnr }
+  local function lsp_map(mode, lhs, rhs, desc)
+    vim.keymap.set(mode, lhs, rhs, {
+      noremap = true,
+      silent = true,
+      buffer = bufnr,
+      desc = desc,
+    })
+  end
 
-  vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
-  vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
-  vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
-  vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
-  vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
-  vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
+  lsp_map('n', 'gd', vim.lsp.buf.definition, 'Go to definition')
+  lsp_map('n', 'gD', vim.lsp.buf.declaration, 'Go to declaration')
+  lsp_map('n', 'K', vim.lsp.buf.hover, 'Hover documentation')
+  lsp_map('n', 'gK', vim.lsp.buf.signature_help, 'Signature help')
+  lsp_map('i', '<C-k>', vim.lsp.buf.signature_help, 'Signature help')
+  lsp_map('n', 'gi', vim.lsp.buf.implementation, 'Go to implementation')
+  lsp_map('n', 'gI', vim.lsp.buf.implementation, 'Go to implementation')
+  lsp_map('n', 'gy', vim.lsp.buf.type_definition, 'Go to type definition')
+  lsp_map('n', 'gr', vim.lsp.buf.references, 'Find references')
+  lsp_map('n', '<leader>cr', vim.lsp.buf.rename, 'Rename symbol')
+  lsp_map('n', '<leader>rn', vim.lsp.buf.rename, 'Rename symbol (legacy)')
+  lsp_map('n', '<leader>ca', vim.lsp.buf.code_action, 'Code action')
 
   -- Visual mode formats only the selection: don't reformat code you didn't
   -- touch in a kernel patch.
-  vim.keymap.set('n', '<leader>f', function() vim.lsp.buf.format({ async = true }) end, opts)
-  vim.keymap.set('x', '<leader>f', function()
+  lsp_map('n', '<leader>f', function()
+    vim.lsp.buf.format({ async = true })
+  end, 'Format buffer')
+  lsp_map('x', '<leader>f', function()
     local s = vim.api.nvim_buf_get_mark(0, '<')
     local e = vim.api.nvim_buf_get_mark(0, '>')
     local ok = pcall(vim.lsp.buf.format, {
@@ -122,7 +481,7 @@ local on_attach = function(client, bufnr)
       range = { ['start'] = { s[1], 0 }, ['end'] = { e[1], 0 } },
     })
     if not ok then vim.lsp.buf.format({ async = true }) end
-  end, opts)
+  end, 'Format selection')
 end
 
 local ok_lsp, cmp_nvim_lsp = pcall(require, 'cmp_nvim_lsp')
@@ -269,6 +628,94 @@ local function kernel_root(start)
   end
   return nil
 end
+
+-- Terminal setup
+local project_terminals = {}
+
+local function current_project_root()
+  local terminal_root = vim.b.project_terminal_root
+  if type(terminal_root) == 'string' and terminal_root ~= '' then
+    return terminal_root
+  end
+
+  for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
+    local root = client.root_dir or (client.config and client.config.root_dir)
+    if type(root) == 'string' and root ~= '' then return root end
+  end
+
+  local name = vim.api.nvim_buf_get_name(0)
+  local start = name ~= '' and vim.fs.dirname(name) or vim.fn.getcwd()
+  return kernel_root(start)
+    or vim.fs.root(start, { '.git', 'Cargo.toml', 'compile_commands.json', '.clangd' })
+    or vim.fn.getcwd()
+end
+
+local function terminal_window(bufnr)
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
+      return win
+    end
+  end
+end
+
+local function hide_project_terminal(win)
+  if #vim.api.nvim_tabpage_list_wins(0) > 1 then
+    vim.api.nvim_win_close(win, true)
+  else
+    vim.cmd('enew')
+  end
+end
+
+local function toggle_project_terminal()
+  local root = current_project_root()
+  local bufnr = project_terminals[root]
+
+  if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+    local win = terminal_window(bufnr)
+    if win then
+      hide_project_terminal(win)
+      return
+    end
+
+    local job = vim.b[bufnr].terminal_job_id
+    if job and vim.fn.jobwait({ job }, 0)[1] == -1 then
+      vim.cmd('botright 15split')
+      vim.api.nvim_win_set_buf(0, bufnr)
+      vim.cmd('startinsert')
+      return
+    end
+
+    pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+  end
+
+  vim.cmd('botright 15new')
+  bufnr = vim.api.nvim_get_current_buf()
+  project_terminals[root] = bufnr
+  vim.bo[bufnr].bufhidden = 'hide'
+  vim.bo[bufnr].buflisted = false
+  vim.b[bufnr].project_terminal_root = root
+  vim.fn.jobstart({ vim.o.shell }, { term = true, cwd = root })
+  vim.cmd('startinsert')
+end
+
+vim.api.nvim_create_user_command('ProjectTerminal', toggle_project_terminal,
+  { desc = 'Toggle the terminal for the current project' })
+vim.keymap.set('n', '<leader>ft', toggle_project_terminal,
+  { silent = true, desc = 'Project terminal' })
+vim.keymap.set({ 'n', 't' }, '<C-/>', toggle_project_terminal,
+  { silent = true, desc = 'Toggle project terminal' })
+vim.keymap.set({ 'n', 't' }, '<C-_>', toggle_project_terminal,
+  { silent = true, desc = 'Toggle project terminal' })
+vim.keymap.set('t', '<C-h>', '<C-\\><C-n><C-w>h',
+  { desc = 'Go to left window' })
+vim.keymap.set('t', '<C-j>', '<C-\\><C-n><C-w>j',
+  { desc = 'Go to lower window' })
+vim.keymap.set('t', '<C-k>', '<C-\\><C-n><C-w>k',
+  { desc = 'Go to upper window' })
+vim.keymap.set('t', '<C-l>', '<C-\\><C-n><C-w>l',
+  { desc = 'Go to right window' })
+vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>',
+  { desc = 'Leave terminal mode' })
 
 -- clangd writes .cache/clangd/ under the project root and the kernel's tracked
 -- .gitignore doesn't cover it; .git/info/exclude is never committed.

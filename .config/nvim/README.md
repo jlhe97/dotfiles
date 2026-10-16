@@ -1,26 +1,69 @@
 # Neovim config
 
 C/C++ and Rust with the built-in LSP client (no lspconfig), tuned for Linux
-kernel trees. Requires Neovim 0.8+.
+kernel trees. Requires Neovim 0.12+.
 
 Symlinked to `~/.config/nvim` by `install.sh` — don't copy the files. Plugins
 bootstrap on first launch, or `nvim +PlugInstall +qall`.
 
-## Keys
+Press `Space` and pause briefly to display the available keybindings with
+Which-key.
 
-Leader is `\`.
+Treesitter never downloads parsers during startup. Run `:TSInstallCore` once
+after installing the plugins, and `:TSUpdate` when updating Treesitter.
+
+## Keys
 
 | | |
 |---|---|
-| `gd` `gr` `gi` | definition, references, implementation |
-| `K` | hover docs |
-| `<leader>rn` `<leader>ca` | rename, code actions |
-| `<leader>f` | format — visual mode formats the selection only |
+| `Space p` / `Space ff` | find files with FZF |
+| `Space fg` / `Space sg` / `Space /` | Git files / grep / grep |
+| `Space fb` / `Space fr` | buffers / recent files |
+| `Space ft` / `C-/` | toggle the current project's terminal |
+| `Space sb` / `Space sB` | lines in current / all open buffers |
+| `Space sw` | grep word under cursor |
+| `Space sh` / `Space sk` | help tags / keymaps |
+| `Space sc` / `Space sC` | command history / available commands |
+| `Space sr` | project search and replace with live diff preview |
+| `Space e` / `Space fe` | NERDTree toggle / reveal current file |
+| `Space bn` / `Space bp` / `Space bq` | next / previous / close buffer |
+| `[h` / `]h` / `[H` / `]H` | previous / next / first / last Git hunk |
+| `Space ghs` / `Space ghr` / `Space ghp` | stage / reset / preview Git hunk |
+| `Space ghb` / `Space ghB` | blame current line / buffer |
+| `Space ghS` / `Space ghd` | stage buffer / diff buffer |
+| `ih` | Git hunk text object in visual/operator mode |
+| `[f` / `]f` / `[F` / `]F` | previous / next function start / end |
+| `[c` / `]c` / `[C` / `]C` | previous / next class start / end |
+| `[o` / `]o`, `[s` / `]s`, `[z` / `]z` | loops, scopes, folds |
+| `;` / `,` | repeat / reverse the last character or structural movement |
+| arrows or `C-h/j/k/l` | move between windows |
+| terminal `C-h/j/k/l` / `Esc Esc` | move between windows / leave terminal mode |
+| `gd` `gD` `gr` `gI` `gy` | definition, declaration, references, implementation, type |
+| `K` / `gK` | hover docs / signature help |
+| `Space cr` / `Space ca` | rename / code actions |
+| `Space cl` | attached LSP clients and roots |
+| `[d` / `]d` / `Space sd` | previous / next / location-list diagnostics |
+| `Space xx` / `Space xX` | workspace / current-buffer diagnostics in Trouble |
+| `Space cs` / `Space cS` | document symbols / LSP locations in Trouble |
+| `Space xL` / `Space xQ` | location / quickfix list in Trouble |
+| `Space f` | format — visual mode formats the selection only |
 | `Tab` / `S-Tab` / `CR` | completion: next, previous, accept |
 | `C-Space` | trigger completion |
-| `C-n` / `<leader>n` | NERDTree toggle / reveal current file |
-| `C-p` / `<leader>fg` / `<leader>fb` | fzf: files, grep, buffers |
-| `]q` `[q` `<leader>qf` | quickfix next, previous, open |
+| `Space n` / `Space uh` | message/notification history |
+| `]q` `[q` `Space qf` | quickfix next, previous, open |
+| `Space qs` / `Space qS` | restore current-project session / select session |
+| `Space ql` / `Space qd` | restore latest session / disable saving this session |
+
+The old `C-p` file picker, `C-n` tree toggle, `gi` implementation, and
+`Space rn` rename bindings remain available as compatibility aliases.
+
+Sessions are saved automatically on exit after at least one real file has been
+opened. They are scoped by working directory and Git branch; terminal and help
+buffers are not saved.
+
+Native `:s` and `:%s` commands preview substitutions inline as they are typed.
+Grug Far extends that workflow across files and applies nothing until its
+replace action is explicitly invoked.
 
 ## How the server finds your project
 
