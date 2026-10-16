@@ -48,9 +48,15 @@ after installing the plugins, and `:TSUpdate` when updating Treesitter.
 | `C-Space` | trigger completion |
 | `Space n` / `Space uh` | message/notification history |
 | `]q` `[q` `Space qf` | quickfix next, previous, open |
+| `Space qs` / `Space qS` | restore current-project session / select session |
+| `Space ql` / `Space qd` | restore latest session / disable saving this session |
 
 The old `C-p` file picker, `C-n` tree toggle, `gi` implementation, and
 `Space rn` rename bindings remain available as compatibility aliases.
+
+Sessions are saved automatically on exit after at least one real file has been
+opened. They are scoped by working directory and Git branch; terminal and help
+buffers are not saved.
 
 ## How the server finds your project
 

@@ -27,6 +27,7 @@ vim.call('plug#', 'lewis6991/gitsigns.nvim')
 vim.call('plug#', 'folke/trouble.nvim')
 vim.call('plug#', 'nvim-treesitter/nvim-treesitter', { branch = 'main' })
 vim.call('plug#', 'nvim-treesitter/nvim-treesitter-textobjects', { branch = 'main' })
+vim.call('plug#', 'folke/persistence.nvim')
 vim.call('plug#', 'mg979/vim-visual-multi')
 vim.call('plug#', 'MunifTanjim/nui.nvim')   -- required by noice
 vim.call('plug#', 'folke/noice.nvim')       -- floating : cmdline (see below)
@@ -52,7 +53,7 @@ pcall(function()
     { '<leader>f', group = 'file / find' },
     { '<leader>g', group = 'git' },
     { '<leader>gh', group = 'hunks' },
-    { '<leader>q', group = 'quickfix' },
+    { '<leader>q', group = 'session / quickfix' },
     { '<leader>s', group = 'search' },
     { '<leader>u', group = 'UI' },
     { '<leader>x', group = 'diagnostics' },
@@ -264,6 +265,36 @@ pcall(function()
   vim.keymap.set(modes, 't', repeat_move.builtin_t_expr, { expr = true })
   vim.keymap.set(modes, 'T', repeat_move.builtin_T_expr, { expr = true })
 end)
+
+-- Save project sessions only after a real file has been opened. Terminal and
+-- help buffers are deliberately excluded from the restored workspace.
+vim.opt.sessionoptions = {
+  'buffers',
+  'curdir',
+  'folds',
+  'localoptions',
+  'tabpages',
+  'winpos',
+  'winsize',
+}
+pcall(function()
+  require('persistence').setup({
+    need = 1,
+    branch = true,
+  })
+end)
+vim.keymap.set('n', '<leader>qs', function()
+  require('persistence').load()
+end, { silent = true, desc = 'Restore project session' })
+vim.keymap.set('n', '<leader>qS', function()
+  require('persistence').select()
+end, { silent = true, desc = 'Select session' })
+vim.keymap.set('n', '<leader>ql', function()
+  require('persistence').load({ last = true })
+end, { silent = true, desc = 'Restore last session' })
+vim.keymap.set('n', '<leader>qd', function()
+  require('persistence').stop()
+end, { silent = true, desc = "Don't save current session" })
 
 vim.g.NERDTreeShowHidden = 1          -- show dotfiles
 vim.g.NERDTreeMinimalUI = 1           -- hide the help hint / bookmarks header
