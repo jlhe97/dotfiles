@@ -23,6 +23,7 @@ after installing the plugins, and `:TSUpdate` when updating Treesitter.
 | `Space sw` | grep word under cursor |
 | `Space sh` / `Space sk` | help tags / keymaps |
 | `Space sc` / `Space sC` | command history / available commands |
+| `Space sr` | project search and replace with live diff preview |
 | `Space e` / `Space fe` | NERDTree toggle / reveal current file |
 | `Space bn` / `Space bp` / `Space bq` | next / previous / close buffer |
 | `[h` / `]h` / `[H` / `]H` | previous / next / first / last Git hunk |
@@ -57,6 +58,10 @@ The old `C-p` file picker, `C-n` tree toggle, `gi` implementation, and
 Sessions are saved automatically on exit after at least one real file has been
 opened. They are scoped by working directory and Git branch; terminal and help
 buffers are not saved.
+
+Native `:s` and `:%s` commands preview substitutions inline as they are typed.
+Grug Far extends that workflow across files and applies nothing until its
+replace action is explicitly invoked.
 
 ## How the server finds your project
 
