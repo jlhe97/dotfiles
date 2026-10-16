@@ -113,12 +113,11 @@ install_ghostty() {
     fi
 }
 
-# init.lua requires nvim 0.8+; Ubuntu 22.04 still ships 0.6.
 nvim_meets_minimum() {
     command -v nvim &>/dev/null || return 1
     # -u NONE: init.lua errors out on old nvim, failing this for the wrong reason.
     local answer
-    answer="$(nvim -u NONE --headless -c 'lua io.write(vim.fn.has("nvim-0.8"))' -c 'qa' 2>/dev/null)"
+    answer="$(nvim -u NONE --headless -c 'lua io.write(vim.fn.has("nvim-0.12"))' -c 'qa' 2>/dev/null)"
     [[ "$answer" == "1" ]]
 }
 
@@ -135,19 +134,19 @@ install_neovim() {
         x86_64)         asset='nvim-linux(64|-x86_64)\.tar\.gz' ;;
         aarch64|arm64)  asset='nvim-linux-arm64\.tar\.gz' ;;
         *)
-            warn "no upstream neovim build for $arch — install 0.8+ manually from https://github.com/neovim/neovim/releases"
+            warn "no upstream neovim build for $arch — install 0.12+ manually from https://github.com/neovim/neovim/releases"
             return 0
             ;;
     esac
 
-    info "neovim is missing or older than 0.8 — installing the upstream release..."
+    info "neovim is missing or older than 0.12 — installing the upstream release..."
     local tmp_tar tarball_url
     tmp_tar="$(mktemp /tmp/neovim_XXXXXX.tar.gz)"
     # Asset names churn across releases (nvim-linux64 -> nvim-linux-x86_64).
     tarball_url="$(proxy_curl -fsSL https://api.github.com/repos/neovim/neovim/releases/latest \
         | grep -oE "https://[^\"]*${asset}" | head -1)"
     if [[ -z "$tarball_url" ]]; then
-        warn "could not find an upstream neovim tarball for $arch — install 0.8+ manually"
+        warn "could not find an upstream neovim tarball for $arch — install 0.12+ manually"
         rm -f "$tmp_tar"
         return 0
     fi
@@ -164,7 +163,7 @@ install_neovim() {
     if nvim_meets_minimum; then
         info "neovim installed successfully ($(nvim --version | head -1))"
     else
-        warn "neovim is still older than 0.8 after install — check that /usr/local/bin precedes /usr/bin in PATH"
+        warn "neovim is still older than 0.12 after install — check that /usr/local/bin precedes /usr/bin in PATH"
     fi
 }
 
@@ -696,7 +695,7 @@ main() {
         install_via_packagefile || warn "some packages failed — check output above"
         echo ""
         # After the package file (may top up an old nvim), before plugin install.
-        install_neovim || warn "neovim install incomplete — the nvim config needs 0.8+"
+        install_neovim || warn "neovim install incomplete — the nvim config needs 0.12+"
         echo ""
         install_ghostty || true
         echo ""

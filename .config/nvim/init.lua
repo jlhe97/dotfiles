@@ -629,6 +629,94 @@ local function kernel_root(start)
   return nil
 end
 
+-- Terminal setup
+local project_terminals = {}
+
+local function current_project_root()
+  local terminal_root = vim.b.project_terminal_root
+  if type(terminal_root) == 'string' and terminal_root ~= '' then
+    return terminal_root
+  end
+
+  for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
+    local root = client.root_dir or (client.config and client.config.root_dir)
+    if type(root) == 'string' and root ~= '' then return root end
+  end
+
+  local name = vim.api.nvim_buf_get_name(0)
+  local start = name ~= '' and vim.fs.dirname(name) or vim.fn.getcwd()
+  return kernel_root(start)
+    or vim.fs.root(start, { '.git', 'Cargo.toml', 'compile_commands.json', '.clangd' })
+    or vim.fn.getcwd()
+end
+
+local function terminal_window(bufnr)
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
+      return win
+    end
+  end
+end
+
+local function hide_project_terminal(win)
+  if #vim.api.nvim_tabpage_list_wins(0) > 1 then
+    vim.api.nvim_win_close(win, true)
+  else
+    vim.cmd('enew')
+  end
+end
+
+local function toggle_project_terminal()
+  local root = current_project_root()
+  local bufnr = project_terminals[root]
+
+  if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+    local win = terminal_window(bufnr)
+    if win then
+      hide_project_terminal(win)
+      return
+    end
+
+    local job = vim.b[bufnr].terminal_job_id
+    if job and vim.fn.jobwait({ job }, 0)[1] == -1 then
+      vim.cmd('botright 15split')
+      vim.api.nvim_win_set_buf(0, bufnr)
+      vim.cmd('startinsert')
+      return
+    end
+
+    pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+  end
+
+  vim.cmd('botright 15new')
+  bufnr = vim.api.nvim_get_current_buf()
+  project_terminals[root] = bufnr
+  vim.bo[bufnr].bufhidden = 'hide'
+  vim.bo[bufnr].buflisted = false
+  vim.b[bufnr].project_terminal_root = root
+  vim.fn.jobstart({ vim.o.shell }, { term = true, cwd = root })
+  vim.cmd('startinsert')
+end
+
+vim.api.nvim_create_user_command('ProjectTerminal', toggle_project_terminal,
+  { desc = 'Toggle the terminal for the current project' })
+vim.keymap.set('n', '<leader>ft', toggle_project_terminal,
+  { silent = true, desc = 'Project terminal' })
+vim.keymap.set({ 'n', 't' }, '<C-/>', toggle_project_terminal,
+  { silent = true, desc = 'Toggle project terminal' })
+vim.keymap.set({ 'n', 't' }, '<C-_>', toggle_project_terminal,
+  { silent = true, desc = 'Toggle project terminal' })
+vim.keymap.set('t', '<C-h>', '<C-\\><C-n><C-w>h',
+  { desc = 'Go to left window' })
+vim.keymap.set('t', '<C-j>', '<C-\\><C-n><C-w>j',
+  { desc = 'Go to lower window' })
+vim.keymap.set('t', '<C-k>', '<C-\\><C-n><C-w>k',
+  { desc = 'Go to upper window' })
+vim.keymap.set('t', '<C-l>', '<C-\\><C-n><C-w>l',
+  { desc = 'Go to right window' })
+vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>',
+  { desc = 'Leave terminal mode' })
+
 -- clangd writes .cache/clangd/ under the project root and the kernel's tracked
 -- .gitignore doesn't cover it; .git/info/exclude is never committed.
 local excluded = {}

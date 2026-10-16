@@ -677,7 +677,7 @@ EOF
   [[ "$output" == *"already installed"* ]]
 }
 
-# The mock answers the `has("nvim-0.8")` probe rather than --version, because
+# The mock answers the `has("nvim-0.12")` probe rather than --version, because
 # that is what nvim_meets_minimum actually reads; --version is only echoed back
 # in the log line.
 mock_nvim() {
@@ -694,7 +694,7 @@ EOF
 }
 
 @test "nvim_meets_minimum accepts a new enough nvim" {
-  mock_nvim 1 "0.10.0"
+  mock_nvim 1 "0.13.0"
   local orig_path="$PATH"
   export PATH="$MOCK_BIN:$PATH"
 
@@ -704,7 +704,7 @@ EOF
   [ "$status" -eq 0 ]
 }
 
-@test "nvim_meets_minimum rejects an nvim older than 0.8" {
+@test "nvim_meets_minimum rejects an nvim older than 0.12" {
   mock_nvim 0 "0.6.1"
   local orig_path="$PATH"
   export PATH="$MOCK_BIN:$PATH"
