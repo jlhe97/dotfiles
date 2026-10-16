@@ -1,9 +1,9 @@
 
-if vim.fn.has('nvim-0.11') ~= 1 then
+if vim.fn.has('nvim-0.12') ~= 1 then
   local ok, v = pcall(vim.version)
   local found = (ok and type(v) == 'table')
     and string.format('%d.%d.%d', v.major, v.minor, v.patch) or 'an older release'
-  error(('this config requires Neovim 0.11 or newer (found %s)'):format(found), 0)
+  error(('this config requires Neovim 0.12 or newer (found %s)'):format(found), 0)
 end
 
 vim.g.mapleader = ' '
@@ -25,6 +25,8 @@ vim.call('plug#', 'Mofiqul/vscode.nvim')
 vim.call('plug#', 'RRethy/vim-illuminate')
 vim.call('plug#', 'lewis6991/gitsigns.nvim')
 vim.call('plug#', 'folke/trouble.nvim')
+vim.call('plug#', 'nvim-treesitter/nvim-treesitter', { branch = 'main' })
+vim.call('plug#', 'nvim-treesitter/nvim-treesitter-textobjects', { branch = 'main' })
 vim.call('plug#', 'mg979/vim-visual-multi')
 vim.call('plug#', 'MunifTanjim/nui.nvim')   -- required by noice
 vim.call('plug#', 'folke/noice.nvim')       -- floating : cmdline (see below)
@@ -153,6 +155,114 @@ pcall(function()
       lsp = { win = { position = 'right' } },
     },
   })
+end)
+
+-- Do not download parsers during startup: that makes editor startup depend on
+-- network/proxy state. :TSInstallCore explicitly installs the portable set.
+local treesitter_languages = {
+  'bash',
+  'c',
+  'cmake',
+  'cpp',
+  'diff',
+  'json',
+  'lua',
+  'make',
+  'markdown',
+  'markdown_inline',
+  'python',
+  'query',
+  'rust',
+  'toml',
+  'vim',
+  'vimdoc',
+  'yaml',
+}
+
+pcall(function()
+  require('nvim-treesitter').setup({
+    install_dir = vim.fn.stdpath('data') .. '/site',
+  })
+
+  vim.api.nvim_create_user_command('TSInstallCore', function()
+    require('nvim-treesitter').install(treesitter_languages)
+  end, { desc = 'Install the configured Treesitter parsers' })
+
+  vim.api.nvim_create_autocmd('FileType', {
+    group = vim.api.nvim_create_augroup('PortableTreesitter', { clear = true }),
+    pattern = treesitter_languages,
+    callback = function(event)
+      local lang = vim.treesitter.language.get_lang(vim.bo[event.buf].filetype)
+      if lang then pcall(vim.treesitter.start, event.buf, lang) end
+    end,
+  })
+end)
+
+pcall(function()
+  require('nvim-treesitter-textobjects').setup({
+    move = { set_jumps = true },
+  })
+
+  local move = require('nvim-treesitter-textobjects.move')
+  local repeat_move = require('nvim-treesitter-textobjects.repeatable_move')
+  local modes = { 'n', 'x', 'o' }
+  local function ts_map(lhs, rhs, desc)
+    vim.keymap.set(modes, lhs, rhs, { silent = true, desc = desc })
+  end
+
+  ts_map(']f', function()
+    move.goto_next_start('@function.outer', 'textobjects')
+  end, 'Next function start')
+  ts_map('[f', function()
+    move.goto_previous_start('@function.outer', 'textobjects')
+  end, 'Previous function start')
+  ts_map(']F', function()
+    move.goto_next_end('@function.outer', 'textobjects')
+  end, 'Next function end')
+  ts_map('[F', function()
+    move.goto_previous_end('@function.outer', 'textobjects')
+  end, 'Previous function end')
+
+  ts_map(']c', function()
+    move.goto_next_start('@class.outer', 'textobjects')
+  end, 'Next class start')
+  ts_map('[c', function()
+    move.goto_previous_start('@class.outer', 'textobjects')
+  end, 'Previous class start')
+  ts_map(']C', function()
+    move.goto_next_end('@class.outer', 'textobjects')
+  end, 'Next class end')
+  ts_map('[C', function()
+    move.goto_previous_end('@class.outer', 'textobjects')
+  end, 'Previous class end')
+
+  ts_map(']o', function()
+    move.goto_next_start({ '@loop.inner', '@loop.outer' }, 'textobjects')
+  end, 'Next loop')
+  ts_map('[o', function()
+    move.goto_previous_start({ '@loop.inner', '@loop.outer' }, 'textobjects')
+  end, 'Previous loop')
+  ts_map(']s', function()
+    move.goto_next_start('@local.scope', 'locals')
+  end, 'Next local scope')
+  ts_map('[s', function()
+    move.goto_previous_start('@local.scope', 'locals')
+  end, 'Previous local scope')
+  ts_map(']z', function()
+    move.goto_next_start('@fold', 'folds')
+  end, 'Next fold')
+  ts_map('[z', function()
+    move.goto_previous_start('@fold', 'folds')
+  end, 'Previous fold')
+
+  vim.keymap.set(modes, ';', repeat_move.repeat_last_move,
+    { desc = 'Repeat last movement' })
+  vim.keymap.set(modes, ',', repeat_move.repeat_last_move_opposite,
+    { desc = 'Repeat last movement opposite' })
+  vim.keymap.set(modes, 'f', repeat_move.builtin_f_expr, { expr = true })
+  vim.keymap.set(modes, 'F', repeat_move.builtin_F_expr, { expr = true })
+  vim.keymap.set(modes, 't', repeat_move.builtin_t_expr, { expr = true })
+  vim.keymap.set(modes, 'T', repeat_move.builtin_T_expr, { expr = true })
 end)
 
 vim.g.NERDTreeShowHidden = 1          -- show dotfiles
