@@ -28,6 +28,7 @@ vim.call('plug#', 'folke/trouble.nvim')
 vim.call('plug#', 'nvim-treesitter/nvim-treesitter', { branch = 'main' })
 vim.call('plug#', 'nvim-treesitter/nvim-treesitter-textobjects', { branch = 'main' })
 vim.call('plug#', 'folke/persistence.nvim')
+vim.call('plug#', 'MagicDuck/grug-far.nvim')
 vim.call('plug#', 'mg979/vim-visual-multi')
 vim.call('plug#', 'MunifTanjim/nui.nvim')   -- required by noice
 vim.call('plug#', 'folke/noice.nvim')       -- floating : cmdline (see below)
@@ -69,6 +70,7 @@ vim.opt.softtabstop = -1 -- follow shiftwidth
 vim.opt.autoindent = true
 vim.opt.signcolumn = 'yes'
 vim.opt.updatetime = 300
+vim.opt.inccommand = 'nosplit' -- live inline preview for :substitute
 
 vim.opt.termguicolors = true
 vim.o.background = 'dark'
@@ -157,6 +159,21 @@ pcall(function()
     },
   })
 end)
+
+pcall(function()
+  require('grug-far').setup({
+    headerMaxWidth = 80,
+  })
+end)
+vim.keymap.set({ 'n', 'x' }, '<leader>sr', function()
+  local extension = vim.bo.buftype == '' and vim.fn.expand('%:e')
+  require('grug-far').open({
+    transient = true,
+    prefills = {
+      filesFilter = extension and extension ~= '' and '*.' .. extension or nil,
+    },
+  })
+end, { silent = true, desc = 'Search and replace (Grug Far)' })
 
 -- Do not download parsers during startup: that makes editor startup depend on
 -- network/proxy state. :TSInstallCore explicitly installs the portable set.
