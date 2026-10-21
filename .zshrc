@@ -1,3 +1,7 @@
+if [[ -n "${TERM-}" && "$TERM" != "dumb" ]] && ! infocmp "$TERM" &>/dev/null; then
+  export TERM=xterm-256color
+fi
+
 # oh-my-zsh
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="robbyrussell"
