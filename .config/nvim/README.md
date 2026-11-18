@@ -20,6 +20,8 @@ after installing the plugins, and `:TSUpdate` when updating Treesitter.
 | `Space fg` / `Space sg` / `Space /` | Git files / grep / grep |
 | `Space fb` / `Space fr` | buffers / recent files |
 | `Space ft` / `C-/` | toggle the current project's terminal |
+| `Space ac` / `Space al` / `Space aa` | toggle Codex / Claude / choose agent |
+| `Ctrl-g` | toggle the current project's agent from code or terminal |
 | `Space sb` / `Space sB` | lines in current / all open buffers |
 | `Space sw` | grep word under cursor |
 | `Space sh` / `Space sk` | help tags / keymaps |
@@ -64,6 +66,17 @@ buffers are not saved.
 Native `:s` and `:%s` commands preview substitutions inline as they are typed.
 Grug Far extends that workflow across files and applies nothing until its
 replace action is explicitly invoked.
+
+## Agent panes
+
+`:Agent [name] [args]` toggles an agent pane on the right, or opens the picker
+when no name is given. `Ctrl-g` toggles the focused or last-used agent from code
+or terminal, showing the picker on first use. Hiding a pane keeps its session
+running. `Ctrl-/` toggles the separate build shell.
+Config reloads preserve these sessions.
+
+Customize commands through `vim.g.agent_commands` in
+`~/.config/nvim-local/init.lua`. Arguments apply when starting a new process.
 
 ## How the server finds your project
 

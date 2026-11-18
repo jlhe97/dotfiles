@@ -49,6 +49,7 @@ pcall(function()
     icons = { mappings = false },
   })
   which_key.add({
+    { '<leader>a', group = 'agents' },
     { '<leader>b', group = 'buffers' },
     { '<leader>c', group = 'code / LSP' },
     { '<leader>f', group = 'file / find' },
@@ -630,7 +631,15 @@ local function kernel_root(start)
 end
 
 -- Terminal setup
-local project_terminals = {}
+local terminal_state = package.loaded['dotfiles.terminals'] or {
+  projects = {},
+  agents = {},
+  active_agents = {},
+}
+package.loaded['dotfiles.terminals'] = terminal_state
+local project_terminals = terminal_state.projects
+local agent_terminals = terminal_state.agents
+local active_agents = terminal_state.active_agents
 
 local function current_project_root()
   local terminal_root = vim.b.project_terminal_root
@@ -666,37 +675,132 @@ local function hide_project_terminal(win)
   end
 end
 
-local function toggle_project_terminal()
-  local root = current_project_root()
-  local bufnr = project_terminals[root]
+local function toggle_terminal(terminals, key, command, root, vertical)
+  local bufnr = terminals[key]
 
   if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
     local win = terminal_window(bufnr)
     if win then
       hide_project_terminal(win)
-      return
+      return bufnr
     end
 
     local job = vim.b[bufnr].terminal_job_id
     if job and vim.fn.jobwait({ job }, 0)[1] == -1 then
-      vim.cmd('botright 15split')
+      vim.cmd(vertical and 'botright vsplit' or 'botright 15split')
       vim.api.nvim_win_set_buf(0, bufnr)
       vim.cmd('startinsert')
-      return
+      return bufnr
     end
 
     pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
   end
 
-  vim.cmd('botright 15new')
+  vim.cmd(vertical and 'botright vnew' or 'botright 15new')
   bufnr = vim.api.nvim_get_current_buf()
-  project_terminals[root] = bufnr
+  terminals[key] = bufnr
   vim.bo[bufnr].bufhidden = 'hide'
   vim.bo[bufnr].buflisted = false
   vim.b[bufnr].project_terminal_root = root
-  vim.fn.jobstart({ vim.o.shell }, { term = true, cwd = root })
+  local job = vim.fn.jobstart(command, { term = true, cwd = root })
+  if job <= 0 then
+    terminals[key] = nil
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+    vim.notify('Could not start ' .. command[1], vim.log.levels.ERROR)
+    return
+  end
   vim.cmd('startinsert')
+  return bufnr
 end
+
+local function toggle_project_terminal()
+  local root = current_project_root()
+  toggle_terminal(project_terminals, root, { vim.o.shell }, root, false)
+end
+
+local function configured_agents()
+  return vim.tbl_extend('force', {
+    codex = { 'codex' },
+    claude = { 'claude' },
+  }, vim.g.agent_commands or {})
+end
+
+for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+  local root = vim.b[bufnr].project_terminal_root
+  local name = vim.b[bufnr].project_agent_name
+  if root and name then
+    agent_terminals[root .. '\0' .. name] = bufnr
+    active_agents[root] = active_agents[root] or name
+  elseif root then
+    local job = vim.b[bufnr].terminal_job_id
+    local info = job and vim.api.nvim_get_chan_info(job) or {}
+    if vim.deep_equal(info.argv, { vim.o.shell }) then
+      project_terminals[root] = bufnr
+    end
+  end
+end
+
+local function toggle_agent(name, args)
+  local command = vim.deepcopy(configured_agents()[name] or { name })
+  if type(command) ~= 'table' or type(command[1]) ~= 'string' then
+    vim.notify('Agent commands must be lists of arguments', vim.log.levels.ERROR)
+    return
+  end
+  if vim.fn.executable(command[1]) ~= 1 then
+    vim.notify('Agent executable not found: ' .. command[1], vim.log.levels.ERROR)
+    return
+  end
+  vim.list_extend(command, args or {})
+  local root = current_project_root()
+  local bufnr = toggle_terminal(agent_terminals, root .. '\0' .. name, command, root, true)
+  if bufnr then
+    active_agents[root] = name
+    vim.b[bufnr].project_agent_name = name
+  end
+end
+
+local function choose_agent()
+  local names = vim.tbl_keys(configured_agents())
+  table.sort(names)
+  vim.ui.select(names, { prompt = 'Agent:' }, function(name)
+    if name then toggle_agent(name) end
+  end)
+end
+
+local function toggle_current_agent()
+  local name = vim.b.project_agent_name or active_agents[current_project_root()]
+  if name then
+    toggle_agent(name)
+  else
+    choose_agent()
+  end
+end
+
+vim.api.nvim_create_user_command('Agent', function(opts)
+  if #opts.fargs == 0 then
+    choose_agent()
+  else
+    toggle_agent(opts.fargs[1], vim.list_slice(opts.fargs, 2))
+  end
+end, {
+  nargs = '*',
+  complete = function(arglead)
+    local names = vim.tbl_keys(configured_agents())
+    table.sort(names)
+    return vim.tbl_filter(function(name)
+      return vim.startswith(name, arglead)
+    end, names)
+  end,
+  desc = 'Toggle a project agent terminal',
+})
+vim.keymap.set('n', '<leader>aa', choose_agent,
+  { silent = true, desc = 'Choose agent' })
+vim.keymap.set('n', '<leader>ac', function() toggle_agent('codex') end,
+  { silent = true, desc = 'Toggle Codex agent' })
+vim.keymap.set('n', '<leader>al', function() toggle_agent('claude') end,
+  { silent = true, desc = 'Toggle Claude agent' })
+vim.keymap.set({ 'n', 't' }, '<C-g>', toggle_current_agent,
+  { silent = true, desc = 'Toggle agent pane' })
 
 vim.api.nvim_create_user_command('ProjectTerminal', toggle_project_terminal,
   { desc = 'Toggle the terminal for the current project' })
