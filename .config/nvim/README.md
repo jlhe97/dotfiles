@@ -45,7 +45,7 @@ after installing the plugins, and `:TSUpdate` when updating Treesitter.
 | `Space cr` / `Space ca` | rename / code actions |
 | `Space cl` | attached LSP clients and roots |
 | `[d` / `]d` / `Space sd` | previous / next / location-list diagnostics |
-| `Space xx` / `Space xX` | workspace / current-buffer diagnostics in Trouble |
+| `Space xx` / `Space xX` | toggle current-buffer / workspace diagnostics in Trouble |
 | `Space cs` / `Space cS` | document symbols / LSP locations in Trouble |
 | `Space xL` / `Space xQ` | location / quickfix list in Trouble |
 | `Space f` | format — visual mode formats the selection only |
@@ -89,6 +89,12 @@ Customize commands through `vim.g.agent_commands` in
 
 clangd needs a `compile_commands.json` — see the repo README for how to
 generate one per build system.
+
+On Linux, we use the repo's defaults when present; otherwise we use our own.
+
+macOS uses native clangd configuration.
+
+Reload with `:source $MYVIMRC` and `:ClangdRestart`.
 
 In a kernel tree clangd starts with `--header-insertion=never` and is rooted at
 the tree. Build the tree, then `:KernelCCDB [objdir]` (or `bin/kernel-ccdb`)
