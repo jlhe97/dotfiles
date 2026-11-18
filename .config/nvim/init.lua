@@ -159,6 +159,10 @@ pcall(function()
       lsp = { win = { position = 'right' } },
     },
   })
+  local config = require('trouble.config')
+  for _, source in pairs(require('trouble.sources').sources) do
+    if source.config then config.defaults(source.config) end
+  end
 end)
 
 pcall(function()
@@ -418,10 +422,10 @@ vim.keymap.set('n', ']d', function() diagnostic_jump(1) end,
 vim.keymap.set('n', '<leader>sd', function()
   vim.diagnostic.setloclist({ open = true })
 end, { silent = true, desc = 'Document diagnostics' })
-vim.keymap.set('n', '<leader>xx', '<cmd>Trouble diagnostics toggle<CR>',
-  { silent = true, desc = 'Diagnostics (Trouble)' })
-vim.keymap.set('n', '<leader>xX', '<cmd>Trouble diagnostics toggle filter.buf=0<CR>',
+vim.keymap.set('n', '<leader>xx', '<cmd>Trouble diagnostics toggle filter.buf=0<CR>',
   { silent = true, desc = 'Buffer diagnostics (Trouble)' })
+vim.keymap.set('n', '<leader>xX', '<cmd>Trouble diagnostics toggle<CR>',
+  { silent = true, desc = 'Workspace diagnostics (Trouble)' })
 vim.keymap.set('n', '<leader>cs', '<cmd>Trouble symbols toggle<CR>',
   { silent = true, desc = 'Document symbols (Trouble)' })
 vim.keymap.set('n', '<leader>cS', '<cmd>Trouble lsp toggle<CR>',
@@ -851,45 +855,52 @@ vim.api.nvim_create_autocmd("FileType", {
   desc = "Tab-indent shell scripts in kernel trees",
 })
 
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = {"c", "cpp"},
-  callback = function()
-    local kroot = kernel_root()
-    exclude_clangd_cache(kroot)
-    local proj
-    if not kroot then
-      local dir = vim.fn.expand("%:p:h")
-      for _, detect in ipairs(_G.cpp_project_detectors) do
-        proj = detect(dir)
-        if proj then break end
-      end
+local clangd_policy = dofile(vim.fn.stdpath('config') .. '/lua/dotfiles/clangd.lua')
+local function start_clangd(bufnr)
+  local file = vim.api.nvim_buf_get_name(bufnr)
+  if file == '' then return end
+  local dir = vim.fs.dirname(file)
+  local kroot = kernel_root(dir)
+  exclude_clangd_cache(kroot)
+  local proj
+  if not kroot then
+    for _, detect in ipairs(_G.cpp_project_detectors) do
+      proj = detect(dir)
+      if proj then break end
     end
-    -- Detectors take precedence over the nearest compile DB / .clangd / git
-    -- root: a monorepo's nearest .clangd can sit well below its compile DB.
-    local root = kroot or (proj and proj.root)
-    if not root then
-      local marker = vim.fs.find({ "compile_commands.json", ".clangd", ".git" },
-        { upward = true, path = vim.fn.expand("%:p:h") })[1]
-      if marker then root = vim.fs.dirname(marker) end
-    end
-    vim.lsp.start({
-      name = "clangd",
-      cmd = {
-        (proj and proj.bin) or clangd_bin(),
-        "--background-index",
-        "--clang-tidy",
-        -- Kernel include rules aren't IWYU, so its suggestions are wrong there.
-        "--header-insertion=" ..
-          (kroot and "never" or (proj and proj.header_insertion) or "iwyu"),
-        "--completion-style=detailed",
-        "--function-arg-placeholders=1",
-      },
-      root_dir = root,
-      capabilities = capabilities,
-      on_attach = on_attach,
-    })
-  end,
-})
+  end
+  -- Detectors take precedence over the nearest compile DB / .clangd / git
+  -- root: a monorepo's nearest .clangd can sit well below its compile DB.
+  local root = kroot or (proj and proj.root)
+  if not root then
+    local marker = vim.fs.find({ "compile_commands.json", ".clangd", ".git" },
+      { upward = true, path = dir })[1]
+    if marker then root = vim.fs.dirname(marker) end
+  end
+  local ok, env = pcall(clangd_policy.prepare, file, root)
+  if not ok then
+    vim.notify('clangd policy: ' .. tostring(env), vim.log.levels.ERROR)
+    return
+  end
+  vim.lsp.start({
+    name = "clangd",
+    cmd = {
+      (proj and proj.bin) or clangd_bin(),
+      "--background-index",
+      "--clang-tidy",
+      -- Kernel include rules aren't IWYU, so its suggestions are wrong there.
+      "--header-insertion=" ..
+        (kroot and "never" or (proj and proj.header_insertion) or "iwyu"),
+      "--completion-style=detailed",
+      "--function-arg-placeholders=1",
+    },
+    root_dir = root,
+    cmd_env = env,
+    capabilities = capabilities,
+    on_attach = on_attach,
+  }, { bufnr = bufnr })
+end
+clangd_policy.setup(start_clangd, vim.fn.stdpath('config') .. '/../clangd/config.yaml')
 
 -- :KernelCCDB [objdir] — needs a built tree (the target scans make's .cmd
 -- files). For an O= build pass the objdir, or set vim.g.kernel_objdir once:

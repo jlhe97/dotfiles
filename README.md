@@ -85,6 +85,8 @@ from `$KERNEL_OBJDIR` / `vim.g.kernel_objdir`.
 `-Wno-error`; without it clang hits its 19-error limit on those flags and
 silently truncates diagnostics for the whole file.
 
+On Linux, we use the repo's defaults when present; otherwise we use our own.
+
 nvim detects a kernel tree (`Kbuild` + `Kconfig` + `MAINTAINERS`) and switches
 clangd to `--header-insertion=never`, roots it at the tree, formats with the
 in-tree `.clang-format` on `<leader>f` (visual mode formats the selection only),
