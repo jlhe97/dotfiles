@@ -8,7 +8,11 @@ DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 setup() {
   TEST_HOME="$(mktemp -d)"
   export HOME="$TEST_HOME"
+  # An inherited XDG_CONFIG_HOME sends `git config --global` to the real
+  # ~/.config/git/config, which is a symlink into this repo.
+  unset XDG_CONFIG_HOME
   export MAIL_MODE=direct
+  export APPARMOR_DIR="$TEST_HOME/apparmor.d"
 
   # Source install.sh functions without triggering `set -e` or `main "$@"`.
   local tmpfile
@@ -345,6 +349,7 @@ EOF
   local log="$TEST_HOME/apt.log"
   cat > "$MOCK_BIN/sudo" << 'EOF'
 #!/bin/bash
+while [[ "$1" == *=* ]]; do export "$1"; shift; done
 exec "$@"
 EOF
   cat > "$MOCK_BIN/apt" << EOF
@@ -373,6 +378,36 @@ EOF
   [[ "$(cat "$log")" != *"a comment"* ]]
 }
 
+@test "install_via_packagefile runs apt install with a noninteractive debconf frontend" {
+  local log="$TEST_HOME/apt-frontend.log"
+  cat > "$MOCK_BIN/sudo" << 'EOF'
+#!/bin/bash
+while [[ "$1" == *=* ]]; do export "$1"; shift; done
+exec "$@"
+EOF
+  cat > "$MOCK_BIN/apt" << EOF
+#!/bin/bash
+echo "frontend=\${DEBIAN_FRONTEND:-unset} apt \$*" >> "$log"
+EOF
+  chmod +x "$MOCK_BIN/sudo" "$MOCK_BIN/apt"
+
+  local fake_dotfiles="$TEST_HOME/fake_dotfiles_frontend"
+  mkdir -p "$fake_dotfiles/packages"
+  printf 'msmtp\n' > "$fake_dotfiles/packages/apt.txt"
+  DOTFILES_DIR="$fake_dotfiles"
+
+  local orig_path="$PATH"
+  export PATH="$MOCK_BIN"
+
+  run install_via_packagefile
+
+  export PATH="$orig_path"
+  DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
+
+  [ "$status" -eq 0 ]
+  grep -qx 'frontend=noninteractive apt install -y msmtp' "$log"
+}
+
 # Regression: the loop feeds the package list in on stdin, so a package manager
 # that reads stdin swallows the remainder of the list and the loop ends after
 # the package that did it -- silently, since nothing returned non-zero. On
@@ -383,6 +418,7 @@ EOF
   local log="$TEST_HOME/apt-slurp.log"
   cat > "$MOCK_BIN/sudo" << 'EOF'
 #!/bin/bash
+while [[ "$1" == *=* ]]; do export "$1"; shift; done
 exec "$@"
 EOF
   # Drain with a builtin loop, not `cat`: PATH is $MOCK_BIN only, so an
@@ -455,6 +491,7 @@ EOF
   local log="$TEST_HOME/apt.log"
   cat > "$MOCK_BIN/sudo" << 'EOF'
 #!/bin/bash
+while [[ "$1" == *=* ]]; do export "$1"; shift; done
 exec "$@"
 EOF
   cat > "$MOCK_BIN/apt" << EOF
@@ -499,7 +536,7 @@ EOF
   mkdir -p "$fake_dotfiles/packages"
   printf 'tmux\n' > "$fake_dotfiles/packages/apt.txt"
 
-  printf '#!/bin/bash\nexec "$@"\n'        > "$MOCK_BIN/sudo"
+  printf '#!/bin/bash\nwhile [[ "$1" == *=* ]]; do export "$1"; shift; done\nexec "$@"\n' > "$MOCK_BIN/sudo"
   printf '#!/bin/bash\nexit 1\n'           > "$MOCK_BIN/apt"
   chmod +x "$MOCK_BIN/sudo" "$MOCK_BIN/apt"
 
@@ -1217,4 +1254,62 @@ EOF
   resolve_identity
 
   [ "$USER_NAME" = "Flag User" ]
+}
+
+# ---------------------------------------------------------------------------
+# configure_mbsync_apparmor
+# ---------------------------------------------------------------------------
+
+_mbsync_apparmor_mocks() {
+  mkdir -p "$APPARMOR_DIR/local"
+  touch "$APPARMOR_DIR/mbsync"
+  printf '#!/bin/bash\nexec "$@"\n' > "$MOCK_BIN/sudo"
+  printf '#!/bin/bash\necho "apparmor_parser $*" >> "%s"\n' "$TEST_HOME/parser.log" > "$MOCK_BIN/apparmor_parser"
+  chmod +x "$MOCK_BIN/sudo" "$MOCK_BIN/apparmor_parser"
+  export PATH="$MOCK_BIN:$PATH"
+}
+
+@test "configure_mbsync_apparmor is a no-op when there is no mbsync profile" {
+  run configure_mbsync_apparmor
+  [ "$status" -eq 0 ]
+  [ ! -e "$APPARMOR_DIR/local/mbsync" ]
+}
+
+@test "configure_mbsync_apparmor is a no-op when the mbsync profile is disabled" {
+  _mbsync_apparmor_mocks
+  mkdir -p "$APPARMOR_DIR/disable"
+  ln -s "$APPARMOR_DIR/mbsync" "$APPARMOR_DIR/disable/mbsync"
+  run configure_mbsync_apparmor
+  [ "$status" -eq 0 ]
+  [ ! -e "$APPARMOR_DIR/local/mbsync" ]
+}
+
+@test "configure_mbsync_apparmor lets PassCmd's shell run only the resolved mail-pass" {
+  _mbsync_apparmor_mocks
+  run configure_mbsync_apparmor
+  [ "$status" -eq 0 ]
+  local f="$APPARMOR_DIR/local/mbsync"
+  grep -qxF '/{usr/,}bin/{sh,dash} Cx -> passcmd,' "$f"
+  grep -qxF "  \"$(cd "$DOTFILES_DIR/bin" && pwd -P)/mail-pass\" Ux," "$f"
+  [ "$(grep -c ' Ux,' "$f")" -eq 1 ]
+  grep -qxF "apparmor_parser -r $APPARMOR_DIR/mbsync" "$TEST_HOME/parser.log"
+}
+
+@test "configure_mbsync_apparmor does not reload the profile when nothing changed" {
+  _mbsync_apparmor_mocks
+  configure_mbsync_apparmor
+  rm -f "$TEST_HOME/parser.log"
+  run configure_mbsync_apparmor
+  [ "$status" -eq 0 ]
+  [ ! -e "$TEST_HOME/parser.log" ]
+}
+
+@test "configure_mbsync_apparmor leaves a hand-written local profile alone" {
+  _mbsync_apparmor_mocks
+  echo "owner @{HOME}/Maildir/** rw," > "$APPARMOR_DIR/local/mbsync"
+  run configure_mbsync_apparmor
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not touching it"* ]]
+  [ "$(cat "$APPARMOR_DIR/local/mbsync")" = "owner @{HOME}/Maildir/** rw," ]
+  [ ! -e "$TEST_HOME/parser.log" ]
 }

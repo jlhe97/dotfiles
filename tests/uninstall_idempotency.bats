@@ -10,6 +10,8 @@ REAL_DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 setup() {
   TEST_HOME="$(mktemp -d)"
   export HOME="$TEST_HOME"
+  # Keep main() away from the host's /etc/apparmor.d and its sudo calls.
+  export APPARMOR_DIR="$TEST_HOME/apparmor.d"
   export MAIL_MODE=direct
 
   FAKE_DOTFILES="$TEST_HOME/fake_dotfiles"

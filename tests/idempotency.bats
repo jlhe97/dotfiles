@@ -11,6 +11,8 @@ DOTFILES_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 setup() {
   TEST_HOME="$(mktemp -d)"
   export HOME="$TEST_HOME"
+  # Keep main() away from the host's /etc/apparmor.d and its sudo calls.
+  export APPARMOR_DIR="$TEST_HOME/apparmor.d"
   export MAIL_MODE=direct
 
   # Isolated fake dotfiles dir inside TEST_HOME so main() never touches
@@ -175,6 +177,11 @@ Test fixture.
 EOF
   done
 
+  # Ubuntu's AppArmor profile attaches to /usr/bin/mbsync and denies this
+  # test's /tmp paths; a copy elsewhere runs unconfined.
+  local mbsync="$TEST_HOME/mbsync"
+  cp "$(command -v mbsync)" "$mbsync"
+
   local config="$TEST_HOME/local-sync.conf"
   cat > "$config" <<EOF
 MaildirStore fastmail-remote
@@ -190,7 +197,7 @@ Subfolders Verbatim
 EOF
   sed -n '/^Channel /,$p' "$TEST_HOME/.mbsyncrc" >> "$config"
 
-  run mbsync -c "$config" fastmail
+  run "$mbsync" -c "$config" fastmail
   [ "$status" -eq 0 ]
   [ -d "$remote/Kernel/Sent/cur" ]
   [ "$(find "$MAIL_DIR/INBOX/cur" -type f | wc -l)" -eq 1 ]
@@ -207,7 +214,7 @@ Message-ID: <outgoing@example.com>
 
 Test fixture.
 EOF
-  run mbsync -c "$config" fastmail
+  run "$mbsync" -c "$config" fastmail
   [ "$status" -eq 0 ]
   [ "$(find "$remote/Kernel/Sent/cur" -type f | wc -l)" -eq 1 ]
   [ "$(find "$remote/Sent/cur" -type f | wc -l)" -eq 1 ]
