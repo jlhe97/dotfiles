@@ -21,7 +21,7 @@ after installing the plugins, and `:TSUpdate` when updating Treesitter.
 | `Space fb` / `Space fr` | buffers / recent files |
 | `Space ft` / `C-/` | toggle the current project's terminal |
 | `Space ac` / `Space al` / `Space aa` | toggle Codex / Claude / choose agent |
-| `Ctrl-g` | toggle the current project's agent from code or terminal |
+| `Ctrl-;` | toggle the current project's agent from code or terminal |
 | `Space sb` / `Space sB` | lines in current / all open buffers |
 | `Space sw` | grep word under cursor |
 | `Space sh` / `Space sk` | help tags / keymaps |
@@ -70,7 +70,7 @@ replace action is explicitly invoked.
 ## Agent panes
 
 `:Agent [name] [args]` toggles an agent pane on the right, or opens the picker
-when no name is given. `Ctrl-g` toggles the focused or last-used agent from code
+when no name is given. `Ctrl-;` toggles the focused or last-used agent from code
 or terminal, showing the picker on first use. Hiding a pane keeps its session
 running. `Ctrl-/` toggles the separate build shell.
 Config reloads preserve these sessions.
