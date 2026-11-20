@@ -803,7 +803,7 @@ vim.keymap.set('n', '<leader>ac', function() toggle_agent('codex') end,
   { silent = true, desc = 'Toggle Codex agent' })
 vim.keymap.set('n', '<leader>al', function() toggle_agent('claude') end,
   { silent = true, desc = 'Toggle Claude agent' })
-vim.keymap.set({ 'n', 't' }, '<C-g>', toggle_current_agent,
+vim.keymap.set({ 'n', 't' }, '<C-;>', toggle_current_agent,
   { silent = true, desc = 'Toggle agent pane' })
 
 vim.api.nvim_create_user_command('ProjectTerminal', toggle_project_terminal,
