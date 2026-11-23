@@ -86,7 +86,15 @@ end)
 -- and ? on the last line. noice wants 0.9, so on 0.8 the pcall leaves the
 -- stock cmdline in place.
 pcall(function()
+  -- Noice retains automatic-signature callbacks across config reloads.
+  vim.api.nvim_create_augroup('noice_lsp_signature', { clear = true })
   require('noice').setup({
+    lsp = {
+      signature = { auto_open = { enabled = false } },
+    },
+    views = {
+      hover = { size = { max_width = 60, max_height = 8 } },
+    },
     presets = {
       command_palette = true,
       bottom_search = true,
@@ -559,6 +567,22 @@ vim.api.nvim_create_autocmd("FileType", {
 local ok_cmp, cmp = pcall(require, 'cmp')
 if ok_cmp then
   cmp.setup({
+    preselect = cmp.PreselectMode.None,
+    view = { docs = { auto_open = false } },
+    window = {
+      completion = { max_height = 8 },
+      documentation = { max_width = 60, max_height = 8 },
+    },
+    formatting = {
+      fields = { 'abbr', 'kind' },
+      format = function(_, item)
+        local width = math.max(12, math.min(40, vim.api.nvim_win_get_width(0) - 16))
+        if vim.fn.strdisplaywidth(item.abbr) > width then
+          item.abbr = vim.fn.strcharpart(item.abbr, 0, width - 1) .. '…'
+        end
+        return item
+      end,
+    },
     snippet = {
       expand = function(args)
         vim.fn['vsnip#anonymous'](args.body)
@@ -567,12 +591,33 @@ if ok_cmp then
     mapping = cmp.mapping.preset.insert({
       ['<C-b>'] = cmp.mapping.scroll_docs(-4),
       ['<C-f>'] = cmp.mapping.scroll_docs(4),
-      ['<C-Space>'] = cmp.mapping.complete(),
-      ['<C-e>'] = cmp.mapping.abort(),
-      ['<CR>'] = cmp.mapping.confirm({ select = true }),
+      ['<C-Space>'] = cmp.mapping(function()
+        if cmp.visible() then
+          if not cmp.get_selected_entry() then
+            cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
+          end
+          local entry = cmp.get_selected_entry()
+          if not entry then return end
+          entry:resolve(vim.schedule_wrap(function()
+            if not cmp.visible() or cmp.get_selected_entry() ~= entry then return end
+            if #entry:get_documentation() == 0 then
+              vim.notify('No documentation for this suggestion', vim.log.levels.INFO)
+            else
+              cmp.open_docs()
+            end
+          end))
+        else
+          cmp.complete()
+        end
+      end, { 'i' }),
+      ['<C-e>'] = cmp.mapping(function()
+        cmp.abort()
+        pcall(vim.cmd, 'NoiceDismiss')
+      end, { 'i' }),
+      ['<CR>'] = cmp.mapping.confirm({ select = false }),
       ['<Tab>'] = cmp.mapping(function(fallback)
         if cmp.visible() then
-          cmp.select_next_item()
+          cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
         elseif vim.fn['vsnip#jumpable'](1) == 1 then
           vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<Plug>(vsnip-jump-next)', true, true, true), '')
         else
@@ -581,7 +626,7 @@ if ok_cmp then
       end, { 'i', 's' }),
       ['<S-Tab>'] = cmp.mapping(function(fallback)
         if cmp.visible() then
-          cmp.select_prev_item()
+          cmp.select_prev_item({ behavior = cmp.SelectBehavior.Select })
         elseif vim.fn['vsnip#jumpable'](-1) == 1 then
           vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<Plug>(vsnip-jump-prev)', true, true, true), '')
         else

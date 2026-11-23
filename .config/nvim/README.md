@@ -41,7 +41,8 @@ after installing the plugins, and `:TSUpdate` when updating Treesitter.
 | arrows or `C-h/j/k/l` | move between windows |
 | terminal `C-h/j/k/l` / `Esc Esc` | move between windows / leave terminal mode |
 | `gd` `gD` `gr` `gI` `gy` | definition, declaration, references, implementation, type |
-| `K` / `gK` | hover docs / signature help |
+| `K` | hover documentation |
+| `gK` / insert `C-k` | signature help |
 | `Space cr` / `Space ca` | rename / code actions |
 | `Space cl` | attached LSP clients and roots |
 | `[d` / `]d` / `Space sd` | previous / next / location-list diagnostics |
@@ -49,8 +50,9 @@ after installing the plugins, and `:TSUpdate` when updating Treesitter.
 | `Space cs` / `Space cS` | document symbols / LSP locations in Trouble |
 | `Space xL` / `Space xQ` | location / quickfix list in Trouble |
 | `Space f` | format — visual mode formats the selection only |
-| `Tab` / `S-Tab` / `CR` | completion: next, previous, accept |
-| `C-Space` | trigger completion |
+| `Tab` / `S-Tab` / `CR` | completion: next, previous, accept selected item |
+| `C-Space` | request completion / inspect a suggestion's documentation |
+| insert `C-e` | dismiss completion and information popups; stay in insert mode |
 | `Space n` / `Space uh` | message/notification history |
 | `]q` `[q` `Space qf` | quickfix next, previous, open |
 | `Space qs` / `Space qS` | restore current-project session / select session |
